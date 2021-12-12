@@ -16,11 +16,14 @@ void slab_traverse_cache(slab_cache_t* cache)
         LOG("* Partial slab objects: %5d\n\n", cache->partial.num_objects);
 
         LOG("=== Cache statistics ===\n");
+        LOG("* Cache size: %11ld\n", cache->cache_size);
         LOG("* No. Created slabs: %4ld\n", cache->slab_creates);
         LOG("* No. Destroyed slabs: %2ld\n", cache->slab_destroys);
         LOG("* No. Allocations: %6ld\n", cache->slab_allocs);
         LOG("* No. Free's: %11ld\n", cache->slab_frees);
-        LOG("* Cache size: %11ld\n\n", cache->cache_size);
+        LOG("* Has previous cache: %4s\n", cache->prev == NULL ? "no" : "yes");
+        LOG("* Has next cache: %8s\n", cache->next == NULL ? "no" : "yes");
+        LOG("* Has ctor: %14s\n\n", cache->constructor == NULL ? "no" : "yes");
     }
     /* Log all slab caches */
     else
@@ -80,17 +83,20 @@ slab_cache_t *slab_cache_create(const char* descriptor, size_t size, void (*cons
     cache->slab_destroys = 0;
     cache->slab_allocs = 0;
     cache->slab_frees = 0;
+    cache->cache_size = size;
 
     /* Cache properties */
     cache->descriptor = descriptor;
     cache->next = NULL;
     cache->prev = NULL; // Todo: Set the previous node accordingly, so just traverse the slab_caches list until you hit NULL, then set the previous cache.
 
+    cache->constructor = constructor;
+
     /* Append new cache to "global" system cache (slab_caches) */
     slab_caches->next = cache;
 
     /* Configure slab states */
-    cache->free.size = size;
+    cache->free.size = 0;
     cache->free.mem = NULL;
     
     cache->used.size = 0;   // No used memory yet.
