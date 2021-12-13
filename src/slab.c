@@ -74,7 +74,7 @@ void slab_destroy(void)
     // blah
 }
 
-slab_cache_t *slab_cache_create(const char* descriptor, size_t size, void (*constructor)(size_t))
+slab_cache_t *slab_cache_create(const char *descriptor, size_t size, void (*constructor)(size_t))
 {
     slab_cache_t *cache = (slab_cache_t*)PAGE_ALLOC();
     
@@ -89,6 +89,15 @@ slab_cache_t *slab_cache_create(const char* descriptor, size_t size, void (*cons
     cache->descriptor = descriptor;
     cache->next = NULL;
     cache->prev = NULL; // Todo: Set the previous node accordingly, so just traverse the slab_caches list until you hit NULL, then set the previous cache.
+
+	// TODO from up there
+	
+	// slab_cache_t *current = cache;
+
+	// while (current != NULL)
+	// {
+	// 	current = current->next;
+	// }
 
     cache->constructor = constructor;
 
@@ -108,7 +117,7 @@ slab_cache_t *slab_cache_create(const char* descriptor, size_t size, void (*cons
     return cache;
 }
 
-void slab_cache_alloc(void)
+void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor)
 {
     /*
         To allocate an object:
@@ -124,6 +133,35 @@ void slab_cache_alloc(void)
         }
     */
     // allocate object from the cache and return it to the caller
+	
+	if (cache == NULL)
+	{
+		cache = find_in_linked_list(slab_caches, descriptor);
+	}
+
+	void *mem = find_free_slab(cache);
+
+	organize_slab_states(cache);
+
+	return mem;
+}
+
+slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor)
+{
+	slab_cache_t current = cache;
+
+	while (current != NULL)
+	{
+		if (current->descriptor == descriptor)
+			return current;
+
+		current = current->next;
+	}
+}
+
+void *find_free_slab(slab_cache_t *cache)
+{
+	//
 }
 
 void slab_cache_free(void)
