@@ -19,7 +19,6 @@
 
 #define MAX_FREE_SLABS 5    // TODO check 5
 
-typedef struct slab slab_t;
 typedef struct slab_cache slab_cache_t;
 
 // Slab cache (Contains multiple slab_t's)
