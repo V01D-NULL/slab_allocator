@@ -62,7 +62,7 @@ struct slab_cache
 
 void slab_init(void);
 void slab_destroy(void);
-
+slab_cache_t *get_previous_cache(slab_cache_t *cache);
 void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor);
 slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor);
 void *find_free_slab(slab_cache_t *cache);

@@ -88,17 +88,7 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, void (*cons
     /* Cache properties */
     cache->descriptor = descriptor;
     cache->next = NULL;
-    cache->prev = NULL; // Todo: Set the previous node accordingly, so just traverse the slab_caches list until you hit NULL, then set the previous cache.
-
-	// TODO from up there
-	
-	// slab_cache_t *current = cache;
-
-	// while (current != NULL)
-	// {
-	// 	current = current->next;
-	// }
-
+    cache->prev = get_previous_cache(slab_caches); // Todo: Set the previous node accordingly, so just traverse the slab_caches list until you hit NULL, then set the previous cache.
     cache->constructor = constructor;
 
     /* Append new cache to "global" system cache (slab_caches) */
@@ -115,6 +105,21 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, void (*cons
     cache->partial.mem = NULL; // No memory to store
     
     return cache;
+}
+
+slab_cache_t *get_previous_cache(slab_cache_t *cache)
+{
+	slab_cache_t *current = cache;
+
+	for (;;)
+	{
+		if (current->next == NULL)
+			return current;
+
+		current = current->next;
+	}
+
+    return NULL;    // TODO: check if it even can get called
 }
 
 void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor)
@@ -158,7 +163,7 @@ slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor)
 		current = current->next;
 	}
 
-    return NULL;
+    return NULL;    // TODO: check if it even can get called
 }
 
 void *find_free_slab(slab_cache_t *cache)
