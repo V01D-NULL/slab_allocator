@@ -148,7 +148,7 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor)
 
 slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor)
 {
-	slab_cache_t current = cache;
+	slab_cache_t *current = cache;
 
 	while (current != NULL)
 	{
@@ -157,11 +157,18 @@ slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor)
 
 		current = current->next;
 	}
+
+    return NULL;
 }
 
 void *find_free_slab(slab_cache_t *cache)
 {
 	//
+}
+
+void organize_slab_states(slab_cache_t *cache)
+{
+    //
 }
 
 void slab_cache_free(void)
