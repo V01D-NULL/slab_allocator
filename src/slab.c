@@ -28,6 +28,7 @@ void slab_traverse_cache(slab_cache_t* cache)
     /* Log all slab caches */
     else
     {
+        // TODO
     }
 }
 
