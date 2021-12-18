@@ -170,12 +170,12 @@ slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor)
 
 void *find_free_slab(slab_cache_t *cache)
 {
-	//
+	// search free, used and partial slabs and return memory. Can return NULL
 }
 
 void organize_slab_states(slab_cache_t *cache)
 {
-    //
+    // organize slab states -> move free used and partial around as needed
 }
 
 void slab_cache_free(void)
