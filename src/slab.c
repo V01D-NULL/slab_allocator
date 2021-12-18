@@ -70,9 +70,10 @@ void __init kmem_cache_init(void)
 }
 */
 
-void slab_destroy(void)
+void slab_destroy(slab_cache_t *cache)
 {
-    // blah
+    if (cache != NULL)
+        PAGE_UNMAP(cache, cache->cache_size);   // TODO: check this
 }
 
 slab_cache_t *slab_cache_create(const char *descriptor, size_t size, void (*constructor)(size_t))

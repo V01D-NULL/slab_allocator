@@ -8,6 +8,8 @@
 
 #define LOG(...) printf(__VA_ARGS__)
 #define PAGE_ALLOC() malloc(4096)
+// TODO: check this
+#define PAGE_UNMAP(virtual_address, size) munmap(virtual_address, size) // e.g. vmm_unmap_page
 
 // Todo: Define a bitmask for each slab cache to use
 // such as panic if no free mem, allocation type (Kernel, user, dma, etc)
@@ -61,7 +63,7 @@ struct slab_cache
 };
 
 void slab_init(void);
-void slab_destroy(void);
+void slab_destroy(slab_cache_t *cache);
 slab_cache_t *get_previous_cache(slab_cache_t *cache);
 void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor);
 slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor);
