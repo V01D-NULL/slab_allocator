@@ -1,6 +1,12 @@
 #include "slab.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+
+static inline bool is_page_aligned(int _)
+{
+    return (_ % 4096) == 0;
+}
 
 /* Linked list of slab caches */
 static slab_cache_t *slab_caches;
@@ -11,19 +17,26 @@ void slab_traverse_cache(slab_cache_t* cache)
     if (cache != NULL)
     {
         LOG("=== Logging info for the slab cache \"%s\" ===\n", cache->descriptor);
-        LOG("* Free slab objects: %8d\n", cache->free.num_objects);
-        LOG("* Used slab objects: %8d\n", cache->used.num_objects);
-        LOG("* Partial slab objects: %5d\n\n", cache->partial.num_objects);
+        LOG("=== Dumping %ld slabs ===\n", cache->active_slabs);
+
+        for (size_t i = 0; i < cache->active_slabs; i++)
+        {
+            LOG("* #%ld Free slab objects: %8d\n", i, cache->free[i].num_objects);
+            LOG("* #%ld Used slab objects: %8d\n", i, cache->used[i].num_objects);
+            LOG("* #%ld Partial slab objects: %5d\n", i, cache->partial[i].num_objects);
+            LOG("* #%ld Free slab memory: %15p\n\n", i, cache->free[i].mem[i]);
+        }
 
         LOG("=== Cache statistics ===\n");
         LOG("* Cache size: %11ld\n", cache->cache_size);
+        LOG("* No. Active slabs: %5ld\n", cache->active_slabs);
         LOG("* No. Created slabs: %4ld\n", cache->slab_creates);
         LOG("* No. Destroyed slabs: %2ld\n", cache->slab_destroys);
         LOG("* No. Allocations: %6ld\n", cache->slab_allocs);
         LOG("* No. Free's: %11ld\n", cache->slab_frees);
-        LOG("* Has previous cache: %4s\n", cache->prev == NULL ? "no" : "yes");
         LOG("* Has next cache: %8s\n", cache->next == NULL ? "no" : "yes");
-        LOG("* Has ctor: %14s\n\n", cache->constructor == NULL ? "no" : "yes");
+        LOG("* Has ctor: %14s\n", cache->constructor == NULL ? "no" : "yes");
+        LOG("* Has dtor: %14s\n\n", cache->destructor == NULL ? "no" : "yes");
     }
     /* Log all slab caches */
     else
@@ -34,7 +47,7 @@ void slab_traverse_cache(slab_cache_t* cache)
 
 void slab_init(void)
 {
-    slab_caches = PAGE_ALLOC();
+    slab_caches = PAGE_ALLOC(1);
 }
 
 /* linux kernel
@@ -72,14 +85,24 @@ void __init kmem_cache_init(void)
 
 void slab_destroy(slab_cache_t *cache)
 {
-    if (cache != NULL)
-        PAGE_UNMAP(cache, cache->cache_size);   // TODO: check this
+    if (cache == NULL) {
+        LOG("slab_destroy: Cannot destory invalid cache of type NULL!\n");
+        return;
+    }
 }
 
-slab_cache_t *slab_cache_create(const char *descriptor, size_t size, void (*constructor)(size_t))
+slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor)
 {
-    slab_cache_t *cache = (slab_cache_t*)PAGE_ALLOC();
-    
+    // Any slab size greater than 4096 bytes must be page aligned.
+    size_t pages_to_alloc = 1;
+    if (size > 4096)
+        if (is_page_aligned(size))
+            pages_to_alloc = size / 4096;
+        else
+            return NULL;
+
+    slab_cache_t *cache = (slab_cache_t*)PAGE_ALLOC(pages_to_alloc);
+
     /* Statistics */
     cache->slab_creates = 0;
     cache->slab_destroys = 0;
@@ -92,19 +115,35 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, void (*cons
     cache->next = NULL;
     cache->prev = get_previous_cache(slab_caches); // Todo: Set the previous node accordingly, so just traverse the slab_caches list until you hit NULL, then set the previous cache.
     cache->constructor = constructor;
+    cache->destructor  = destructor;
 
     /* Append new cache to "global" system cache (slab_caches) */
     slab_caches->next = cache;
 
     /* Configure slab states */
-    cache->free.size = 0;
-    cache->free.mem = NULL;
-    
-    cache->used.size = 0;   // No used memory yet.
-    cache->used.mem = NULL; // No memory to store
+    if (num_slabs > MAX_CREATABLE_SLABS_PER_CACHE) num_slabs = MAX_CREATABLE_SLABS_PER_CACHE;
+    cache->free    = (slab_t*)PAGE_ALLOC(1);
+    cache->used    = (slab_t*)PAGE_ALLOC(1);
+    cache->partial = (slab_t*)PAGE_ALLOC(1);
 
-    cache->partial.size = 0;   // No used memory yet.
-    cache->partial.mem = NULL; // No memory to store
+    for (size_t i = 0; i < num_slabs; i++, cache->slab_creates++, cache->active_slabs++)
+    {
+        cache->free[i].mem = (void**)PAGE_ALLOC(pages_to_alloc);
+        cache->free[i].mem[i] = NULL;
+        cache->free[i].num_objects = 0;
+        cache->free[i].size = size;
+        
+        cache->used[i].mem = (void**)PAGE_ALLOC(pages_to_alloc); // No memory to store yet, but the member must be allocated
+        cache->used[i].mem[i] = NULL;
+        cache->used[i].num_objects = 0;
+        cache->used[i].size = 0;                                 // No used / allocated objects, this slab is empty
+
+
+        cache->partial[i].mem = (void**)PAGE_ALLOC(pages_to_alloc);
+        cache->partial[i].mem[i] = NULL;
+        cache->partial[i].num_objects = 0;
+        cache->partial[i].size = size;
+    }
     
     return cache;
 }
@@ -121,7 +160,7 @@ slab_cache_t *get_previous_cache(slab_cache_t *cache)
 		current = current->next;
 	}
 
-    return NULL;    // TODO: check if it even can get called
+    __builtin_unreachable();
 }
 
 void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor)
@@ -165,17 +204,17 @@ slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor)
 		current = current->next;
 	}
 
-    return NULL;    // TODO: check if it even can get called
+    __builtin_unreachable();
 }
 
 void *find_free_slab(slab_cache_t *cache)
 {
-	// search free, used and partial slabs and return memory. Can return NULL
+	//
 }
 
 void organize_slab_states(slab_cache_t *cache)
 {
-    // organize slab states -> move free used and partial around as needed
+    //
 }
 
 void slab_cache_free(void)

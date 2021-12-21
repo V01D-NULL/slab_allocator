@@ -7,7 +7,7 @@
 #include <stddef.h>
 
 #define LOG(...) printf(__VA_ARGS__)
-#define PAGE_ALLOC() malloc(4096)
+#define PAGE_ALLOC(pages) malloc(4096 * pages)
 // TODO: check this
 #define PAGE_UNMAP(virtual_address, size) munmap(virtual_address, size) // e.g. vmm_unmap_page
 
@@ -20,13 +20,23 @@
 
 
 #define MAX_FREE_SLABS 5    // TODO check 5
+#define MAX_CREATABLE_SLABS_PER_CACHE 4096 // 4096 slabs per cache are the max limit
+#define ctor void (*constructor)(size_t)
+#define dtor void (*destructor )(size_t)
 
 typedef struct slab_cache slab_cache_t;
+typedef struct 
+{
+    void **mem;
+    int size;
+    int num_objects;
+} slab_t;
 
 // Slab cache (Contains multiple slab_t's)
 struct slab_cache
 {
     /* Statistics */
+    uint64_t active_slabs;   // Nr of active slabs (i.e. number of slabs that haven't been destroyed)
     uint64_t slab_creates;   // Total nr of created slabs
     uint64_t slab_destroys;  // Total nr of destroyed slabs
     uint64_t slab_allocs;    // Total nr of allocated slabs
@@ -37,29 +47,13 @@ struct slab_cache
     const char *descriptor;  // Example: fs, double_buffer, etc
     struct slab_cache *prev;
     struct slab_cache *next;
-    void (*constructor)(size_t); // Called when a new object is created
+    ctor; // Called when a new object is created
+    dtor; // Called when an object is (indefinitely) destroyed
 
     /* Slab layer */
-    struct
-    {
-        void **mem;      // Memory
-        int size;        // Size of the slab in bytes
-        int num_objects; // Number of entries in `mem'
-    } free;
-
-    struct
-    {
-        void **mem;
-        int size;
-        int num_objects;
-    } used;
-
-    struct
-    {
-        void **mem;
-        int size;
-        int num_objects;
-    } partial;
+    slab_t *free;
+    slab_t *used;
+    slab_t *partial;
 };
 
 void slab_init(void);
@@ -71,7 +65,7 @@ void *find_free_slab(slab_cache_t *cache);
 void organize_slab_states(slab_cache_t *cache);
 void slab_cache_free(void);
 
-slab_cache_t *slab_cache_create(const char *descriptor, size_t size, void (*constructor)(size_t));
+slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor);
 
 void slab_traverse_cache(slab_cache_t* cache);
 
