@@ -21,14 +21,24 @@ void slab_traverse_cache(slab_cache_t* cache)
 
         for (size_t i = 0; i < cache->active_slabs; i++)
         {
-            LOG("* #%ld Free slab objects: %8d\n", i, cache->free[i].num_objects);
-            LOG("* #%ld Used slab objects: %8d\n", i, cache->used[i].num_objects);
-            LOG("* #%ld Partial slab objects: %5d\n", i, cache->partial[i].num_objects);
-            LOG("* #%ld Free slab memory: %15p\n\n", i, cache->free[i].mem[i]);
+            LOG("* Free slab nr:\n");
+            LOG("* #%ld Total objects: %8d\n", i, cache->free[i].num_objects);
+            LOG("* #%ld Assigned memory: %15p\n", i, cache->free[i].mem[i] == (void*)-1 ? 0 : cache->free[i].mem[i]);
+            LOG("* #%ld Size: %d\n\n", i, cache->free[i].size);
+
+            LOG("* Used slab:\n");
+            LOG("* #%ld Total objects: %8d\n", i, cache->used[i].num_objects);
+            LOG("* #%ld Assigned memory: %15p\n", i, cache->used[i].mem[i] == (void*)-1 ? 0 : cache->used[i].mem[i]);
+            LOG("* #%ld Size: %d\n\n", i, cache->used[i].size);
+
+            LOG("* Partial slab:\n");
+            LOG("* #%ld Total objects: %8d\n", i, cache->partial[i].num_objects);
+            LOG("* #%ld Assigned memory: %15p\n", i, cache->partial[i].mem[i] == (void*)-1 ? 0 : cache->partial[i].mem[i]);
+            LOG("* #%ld Size: %d\n\n", i, cache->partial[i].size);
+
         }
 
         LOG("=== Cache statistics ===\n");
-        LOG("* Cache size: %11ld\n", cache->cache_size);
         LOG("* No. Active slabs: %5ld\n", cache->active_slabs);
         LOG("* No. Created slabs: %4ld\n", cache->slab_creates);
         LOG("* No. Destroyed slabs: %2ld\n", cache->slab_destroys);
@@ -41,7 +51,10 @@ void slab_traverse_cache(slab_cache_t* cache)
     /* Log all slab caches */
     else
     {
-        // TODO
+        for (;;)
+        {
+            
+        }
     }
 }
 
@@ -89,6 +102,7 @@ void slab_destroy(slab_cache_t *cache)
         LOG("slab_destroy: Cannot destory invalid cache of type NULL!\n");
         return;
     }
+    
 }
 
 slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor)
@@ -108,7 +122,6 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
     cache->slab_destroys = 0;
     cache->slab_allocs = 0;
     cache->slab_frees = 0;
-    cache->cache_size = size;
 
     /* Cache properties */
     cache->descriptor = descriptor;
@@ -118,7 +131,7 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
     cache->destructor  = destructor;
 
     /* Append new cache to "global" system cache (slab_caches) */
-    slab_caches->next = cache;
+    append_to_global_cache(cache);
 
     /* Configure slab states */
     if (num_slabs > MAX_CREATABLE_SLABS_PER_CACHE) num_slabs = MAX_CREATABLE_SLABS_PER_CACHE;
@@ -129,18 +142,18 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
     for (size_t i = 0; i < num_slabs; i++, cache->slab_creates++, cache->active_slabs++)
     {
         cache->free[i].mem = (void**)PAGE_ALLOC(pages_to_alloc);
-        cache->free[i].mem[i] = NULL;
+        cache->free[i].mem[i] = (void*)-1;
         cache->free[i].num_objects = 0;
         cache->free[i].size = size;
         
         cache->used[i].mem = (void**)PAGE_ALLOC(pages_to_alloc); // No memory to store yet, but the member must be allocated
-        cache->used[i].mem[i] = NULL;
+        cache->used[i].mem[i] = (void*)-1;
         cache->used[i].num_objects = 0;
         cache->used[i].size = 0;                                 // No used / allocated objects, this slab is empty
 
 
         cache->partial[i].mem = (void**)PAGE_ALLOC(pages_to_alloc);
-        cache->partial[i].mem[i] = NULL;
+        cache->partial[i].mem[i] = (void*)-1;
         cache->partial[i].num_objects = 0;
         cache->partial[i].size = size;
     }
@@ -156,6 +169,23 @@ slab_cache_t *get_previous_cache(slab_cache_t *cache)
 	{
 		if (current->next == NULL)
 			return current;
+
+		current = current->next;
+	}
+
+    __builtin_unreachable();
+}
+
+void append_to_global_cache(slab_cache_t *cache)
+{
+	slab_cache_t *current = slab_caches;
+
+	for (;;)
+	{
+		if (current == NULL) {
+			current = cache;
+            return;
+        }
 
 		current = current->next;
 	}

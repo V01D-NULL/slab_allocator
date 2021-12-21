@@ -8,8 +8,7 @@
 
 #define LOG(...) printf(__VA_ARGS__)
 #define PAGE_ALLOC(pages) malloc(4096 * pages)
-// TODO: check this
-#define PAGE_UNMAP(virtual_address, size) munmap(virtual_address, size) // e.g. vmm_unmap_page
+#define PAGE_FREE(ptr) free(ptr);
 
 // Todo: Define a bitmask for each slab cache to use
 // such as panic if no free mem, allocation type (Kernel, user, dma, etc)
@@ -41,10 +40,9 @@ struct slab_cache
     uint64_t slab_destroys;  // Total nr of destroyed slabs
     uint64_t slab_allocs;    // Total nr of allocated slabs
     uint64_t slab_frees;     // Total nr of free'd slabs
-    uint64_t cache_size;     // Size of the object
 
     /* Cache properties */
-    const char *descriptor;  // Example: fs, double_buffer, etc
+    const char *descriptor;
     struct slab_cache *prev;
     struct slab_cache *next;
     ctor; // Called when a new object is created
@@ -64,7 +62,7 @@ slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor);
 void *find_free_slab(slab_cache_t *cache);
 void organize_slab_states(slab_cache_t *cache);
 void slab_cache_free(void);
-
+void append_to_global_cache(slab_cache_t *cache);
 slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor);
 
 void slab_traverse_cache(slab_cache_t* cache);
