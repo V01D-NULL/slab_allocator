@@ -1,7 +1,7 @@
 CC = @gcc
 CFLAGS = -O2 -g
 
-SRC = $(shell find ./src -type f -name '*.c')
+SRC = $(shell find . -type f -name '*.c')
 OBJ = $(SRC:.c=.c.o)
 FINAL = test_slab
 

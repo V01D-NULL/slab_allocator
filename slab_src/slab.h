@@ -8,7 +8,6 @@
 #include <stdbool.h>
 #include "list.h"
 
-
 #define LOG(...) printf(__VA_ARGS__)
 #define PAGE_ALLOC(pages) malloc(4096 * pages)
 #define PAGE_FREE(ptr) free(ptr);
@@ -29,22 +28,22 @@
 #define dtor void (*destructor )(size_t)
 
 /*
- * An simple implementation of Slab Memory Allocator. A logic structure can be 
- * simplified like this:
- *              
- *              |-- kmem_cache 
- *              |
- * kmem_chain --|-- kmem_cache   |-- slabs_full
- *              |                |
- *              |-- kmem_cache --|-- slabs_partial |-- slab
- *                               |                 |
- *                               |-- slabs_empty --|-- slab   |-- chunk
- *                                                 |          |
- *                                                 |-- slab --|-- chunk
- *                                                            |
- *                                                            |-- chunk
- * 
- */
+An simple implementation of Slab Memory Allocator. A logic structure can be 
+simplified like this:
+             
+             |-- kmem_cache 
+             |
+kmem_chain --|-- kmem_cache   |-- slabs_full
+             |                |
+             |-- kmem_cache --|-- slabs_partial |-- slab
+                              |                 |
+                              |-- slabs_empty --|-- slab   |-- chunk
+                                                |          |
+                                                |-- slab --|-- chunk
+                                                           |
+                                                           |-- chunk
+
+*/
 typedef struct slab_cache slab_cache_t;
 
 // Represents an object of a given slab
