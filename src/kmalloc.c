@@ -1,9 +1,9 @@
 #include "kmalloc.h"
 
 // used when small memory buffers are required
-void kmalloc()
+void kmalloc(size_t bytes) 
 {
-    // slab_cache_alloc
+    
 }
 
 void kzalloc()

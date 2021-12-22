@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <stdbool.h>
+#include "list.h"
+
 
 #define LOG(...) printf(__VA_ARGS__)
 #define PAGE_ALLOC(pages) malloc(4096 * pages)
@@ -19,17 +22,56 @@
 
 
 #define MAX_FREE_SLABS 5    // TODO check 5
+#define MAX_OBJECTS_PER_SLAB 5 // 5 objects per slab
 #define MAX_CREATABLE_SLABS_PER_CACHE 4096 // 4096 slabs per cache are the max limit
+#define SLAB_FREE_ENTRY (void*)-1
 #define ctor void (*constructor)(size_t)
 #define dtor void (*destructor )(size_t)
 
+/*
+ * An simple implementation of Slab Memory Allocator. A logic structure can be 
+ * simplified like this:
+ *              
+ *              |-- kmem_cache 
+ *              |
+ * kmem_chain --|-- kmem_cache   |-- slabs_full
+ *              |                |
+ *              |-- kmem_cache --|-- slabs_partial |-- slab
+ *                               |                 |
+ *                               |-- slabs_empty --|-- slab   |-- chunk
+ *                                                 |          |
+ *                                                 |-- slab --|-- chunk
+ *                                                            |
+ *                                                            |-- chunk
+ * 
+ */
 typedef struct slab_cache slab_cache_t;
-typedef struct 
+
+// Represents an object of a given slab
+typedef struct
 {
-    void **mem;
+    void *mem;
     int size;
     int num_objects;
+
+    /* Flags */
+    bool is_allocated; // True if an object was allocated in the free slab
+} slab_object_t;
+
+// Represents a slab itself, a slab state (full,partial,used) may have multiple struct slab's (i.e. a linked list)
+typedef struct slab
+{
+    slab_object_t objects[MAX_OBJECTS_PER_SLAB];
+    struct slab *next;
 } slab_t;
+
+// Represents a slab *state*, i.e. partial, free or full.
+typedef struct slab_state
+{
+    slab_t *head;
+    slab_t *tail;
+    struct slab_state *next;
+} slab_state_layer_t;
 
 // Slab cache (Contains multiple slab_t's)
 struct slab_cache
@@ -40,6 +82,7 @@ struct slab_cache
     uint64_t slab_destroys;  // Total nr of destroyed slabs
     uint64_t slab_allocs;    // Total nr of allocated slabs
     uint64_t slab_frees;     // Total nr of free'd slabs
+    uint64_t cache_size;     // Size of the cache in bytes
 
     /* Cache properties */
     const char *descriptor;
@@ -49,19 +92,19 @@ struct slab_cache
     dtor; // Called when an object is (indefinitely) destroyed
 
     /* Slab layer */
-    slab_t *free;
-    slab_t *used;
-    slab_t *partial;
+    slab_state_layer_t *free;
+    slab_state_layer_t *used;
+    slab_state_layer_t *partial;
 };
 
 void slab_init(void);
 void slab_destroy(slab_cache_t *cache);
 slab_cache_t *get_previous_cache(slab_cache_t *cache);
-void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor);
+void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes);
 slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor);
-void *find_free_slab(slab_cache_t *cache);
+void *find_free_slab(slab_cache_t *cache, size_t bytes);
 void organize_slab_states(slab_cache_t *cache);
-void slab_cache_free(void);
+void slab_cache_free(slab_cache_t *cache);
 void append_to_global_cache(slab_cache_t *cache);
 slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor);
 
