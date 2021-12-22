@@ -4,29 +4,41 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-typedef struct node {
-   int data;
-   int key;
-   struct node *next;
-} list_node_t;
+// typedef struct node {
+//    int data;
+//    int key;
+//    list_node_t *next;
+// } list_node_t;
 
-static inline void INIT_LIST_HEAD(struct list_head *list)
+typedef struct list_head {
+   list_head_t *next;
+   list_head_t *prev;
+} list_head_t;
+
+#define LIST_HEAD_INIT(name) { &(name), &(name) }
+
+#define LIST_HEAD(name) list_head_t name = LIST_HEAD_INIT(name)
+
+static inline void INIT_LIST_HEAD(list_head_t *list)
 {
-    
+   list->next = list;
+   list->prev = list;
 }
 
-void list_append_left(int key, int data);
-void list_append_right(int key, int data);
+void list_add(list_head_t *new, list_head_t *head);
 
-void list_pop_left(void);
-void list_pop_right(void);
+// void list_append_left(list_head_t *new, list_head_t *head);
+// void list_append_right(list_head_t *new, list_head_t *head);
 
-void list_delete(int key);
+// void list_pop_left(list_head_t *head);
+// void list_pop_right(list_head_t *head);
 
-bool list_is_emtpy(void);
+// void list_delete(int key);
 
-int list_get_length(void);
+bool list_is_emtpy(list_head_t *head);
 
-list_node_t *list_find(int key);
+int list_get_length(list_head_t *head);
+
+// list_node_t *list_find(int key);
 
 #endif // LIST_H
