@@ -4,12 +4,6 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-// typedef struct node {
-//    int data;
-//    int key;
-//    list_node_t *next;
-// } list_node_t;
-
 typedef struct list_head {
    struct list_head *next;
    struct list_head *prev;

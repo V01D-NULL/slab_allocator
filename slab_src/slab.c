@@ -1,8 +1,10 @@
 #include "slab.h"
+#include "list.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 
+slab_t *create_slab();
 static inline bool is_page_aligned(int _)
 {
     return (_ % 4096) == 0;
@@ -162,26 +164,12 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
     cache->free    = (slab_t*)PAGE_ALLOC(1);
     cache->used    = (slab_t*)PAGE_ALLOC(1);
     cache->partial = (slab_t*)PAGE_ALLOC(1);
+    
+    // cache->free->head->objects[0].mem;
 
     for (size_t i = 0; i < num_slabs; i++, cache->slab_creates++, cache->active_slabs++)
     {
-        // cache->free[i].mem = (void**)PAGE_ALLOC(pages_to_alloc);
-        // cache->free[i].mem[i] = SLAB_FREE_ENTRY;
-        // cache->free[i].num_objects = 0;
-        // cache->free[i].size = size;
-        
-        // cache->used[i].mem = (void**)PAGE_ALLOC(pages_to_alloc); // No memory to store yet, but the member must be allocated
-        // cache->used[i].mem[i] = SLAB_FREE_ENTRY;
-        // cache->used[i].num_objects = 0;
-        // cache->used[i].size = 0;                                 // No used / allocated objects, this slab is empty
-
-
-        // cache->partial[i].mem = (void**)PAGE_ALLOC(pages_to_alloc);
-        // cache->partial[i].mem[i] = SLAB_FREE_ENTRY;
-        // cache->partial[i].num_objects = 0;
-        // cache->partial[i].size = size;
-
-        // cache->cache_size += 4096 * 3;
+        slab_t *new_slab = create_slab();
     }
     
     return cache;
@@ -217,6 +205,18 @@ void append_to_global_cache(slab_cache_t *cache)
 	}
 
     __builtin_unreachable();
+}
+
+slab_t *create_slab()
+{
+    slab_t *slab = PAGE_ALLOC(1);
+    for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
+    {
+        slab->objects[i].is_allocated = false;
+        slab->objects[i].num_objects++;
+        slab->objects[i].size = 0;
+    }
+    return slab;
 }
 
 void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
@@ -257,7 +257,7 @@ slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor)
 
 	while (current != NULL)
 	{
-		if (current->descriptor == descriptor)
+		if (strcmp(current->descriptor, descriptor) == 0)
 			return current;
 
 		current = current->next;

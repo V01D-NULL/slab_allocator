@@ -20,8 +20,8 @@
 // http://src.illumos.org/source/xref/illumos-gate/usr/src/uts/common/sys/kmem_impl.h?r=dfec2ecf#118
 
 
-#define MAX_FREE_SLABS 5    // TODO check 5
-#define MAX_OBJECTS_PER_SLAB 5 // 5 objects per slab
+#define MAX_SLABS_PER_STATE  5 // 5 slabs per slab_state_t
+#define MAX_OBJECTS_PER_SLAB 5 // 5 objects per slab_t
 #define MAX_CREATABLE_SLABS_PER_CACHE 4096 // 4096 slabs per cache are the max limit
 #define SLAB_FREE_ENTRY (void*)-1
 #define ctor void (*constructor)(size_t)
@@ -58,10 +58,10 @@ typedef struct
 } slab_object_t;
 
 // Represents a slab itself, a slab state (full,partial,used) may have multiple struct slab's (i.e. a linked list)
-typedef struct slab
+typedef struct _slab
 {
     slab_object_t objects[MAX_OBJECTS_PER_SLAB];
-    struct slab *next;
+    struct _slab *next;
 } slab_t;
 
 // Represents a slab *state*, i.e. partial, free or full.
