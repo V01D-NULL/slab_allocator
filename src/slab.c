@@ -1,5 +1,4 @@
 #include "slab.h"
-#include "list.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -10,10 +9,6 @@ static inline bool is_page_aligned(int _)
     return (_ % 4096) == 0;
 }
 
-static uint64_t *arena = NULL;
-static uint64_t arena_pointer = 0;
-#define LINEAR_ARENA_SIZE 4096 * 3
-
 // linear allocation works visualized like this:
 // [+++++++++++++++++++++++++]                          <- Memory in our case arena (+ means free, * means allocated)
 //  ^                                                   <- Pointer to current free address in our case arena_pointer
@@ -21,13 +16,24 @@ static uint64_t arena_pointer = 0;
 // After allocating a few bytes, it could look like this:
 // [***********++++++++++++++++]
 //             ^
-void *linear_alloc(size_t bytes)
+__attribute__((always_inline))
+static inline void *linear_alloc(uint32_t *arena[], uint32_t arena_pointer[], int which_arena, size_t bytes)
 {
-    if (arena_pointer + bytes >=  LINEAR_ARENA_SIZE)
-        return NULL;
+    if (arena_pointer[which_arena] + bytes >=  LINEAR_ARENA_SIZE)
+    {
+        if (which_arena == LINEAR_INTERNAL_ARENA)
+            BUG("Allocated more internal memory than there is available!\nIncrease value of the 'ARENA_PADDING' macro\n");
+
+        // If we get here, we have wasted 64 kb of memory on a single cache.
+        // Investegate this if it ever happens and bump up the limit
+        if (which_arena == LINEAR_MAX_ARENAS)
+            return NULL;
+        
+        which_arena += 1;
+    }
     
-    arena_pointer += bytes;
-    return (void*)((uint64_t)arena + arena_pointer);
+    arena_pointer[which_arena] += bytes;
+    return (void*)((uintptr_t)arena[which_arena] + arena_pointer[which_arena]);
 }
 
 /* Linked list of slab caches */
@@ -84,7 +90,6 @@ void slab_traverse_cache(slab_cache_t* cache)
 void slab_init(void)
 {
     slab_caches = PAGE_ALLOC(1);
-    arena = PAGE_ALLOC(3);
 }
 
 /* linux kernel
@@ -126,8 +131,6 @@ void slab_destroy(slab_cache_t *cache)
         LOG("slab_destroy: Cannot destory invalid cache of type NULL!\n");
         return;
     }
-
-    // TODO
 }
 
 slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor)
@@ -140,8 +143,25 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
         else
             return NULL;
 
-    slab_cache_t *cache = (slab_cache_t*)PAGE_ALLOC(pages_to_alloc);
+    // We need these to allocate the cache, then they will
+    // be copied to the cache's arena & arena_ptr members.
+    uint32_t *local_list_arena[LINEAR_MAX_ARENAS];
+    uint32_t local_list_arena_ptr[LINEAR_MAX_ARENAS] = {0};
+    
+    // Index 0 is reserved for internal allocations of nodes and alike, do NOT use this for objects
+    local_list_arena[0] = PAGE_ALLOC(1);
 
+    for (size_t i = 1; i < pages_to_alloc+1; i++)
+    {
+        local_list_arena[i] = PAGE_ALLOC(1);
+    }
+    
+    // When this cache is destroyed, we search for NULL to know when to stop freeing arena memory
+    if (pages_to_alloc < LINEAR_MAX_ARENAS)
+        local_list_arena[pages_to_alloc + 2] = NULL;
+    
+    slab_cache_t *cache = (slab_cache_t*)linear_alloc(local_list_arena, local_list_arena_ptr, LINEAR_INTERNAL_ARENA, sizeof(slab_cache_t));
+    
     /* Statistics */
     cache->slab_creates = 0;
     cache->slab_destroys = 0;
@@ -161,17 +181,24 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
 
     /* Configure slab states */
     if (num_slabs > MAX_CREATABLE_SLABS_PER_CACHE) num_slabs = MAX_CREATABLE_SLABS_PER_CACHE;
-    cache->free    = (slab_t*)PAGE_ALLOC(1);
-    cache->used    = (slab_t*)PAGE_ALLOC(1);
-    cache->partial = (slab_t*)PAGE_ALLOC(1);
+    cache->free    = (slab_state_layer_t*)linear_alloc(local_list_arena, local_list_arena_ptr, LINEAR_INTERNAL_ARENA, sizeof(slab_state_layer_t)*3);
+    cache->used    = (slab_state_layer_t*)linear_alloc(local_list_arena, local_list_arena_ptr, LINEAR_INTERNAL_ARENA, sizeof(slab_state_layer_t)*3);
+    cache->partial = (slab_state_layer_t*)linear_alloc(local_list_arena, local_list_arena_ptr, LINEAR_INTERNAL_ARENA, sizeof(slab_state_layer_t)*3);
     
-    // cache->free->head->objects[0].mem;
-
+    slab_t *free_head = cache->free->head;
     for (size_t i = 0; i < num_slabs; i++, cache->slab_creates++, cache->active_slabs++)
     {
-        slab_t *new_slab = create_slab();
+        if (free_head == NULL) free_head = (slab_t*)linear_alloc(local_list_arena, local_list_arena_ptr, LINEAR_INTERNAL_ARENA, sizeof(slab_t));
+        free_head = create_slab();
+        free_head = free_head->next;
     }
-    
+
+    /* Configure this cache's internal allocation arena */
+    for (size_t i = 0; i < pages_to_alloc; i++) {
+        cache->list_arena[i] = local_list_arena[i];
+        cache->list_arena_ptr[i] = local_list_arena_ptr[i];
+    }
+
     return cache;
 }
 
@@ -234,87 +261,4 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes
             construct the object;
         }
     */
-    // allocate object from the cache and return it to the caller
-	
-    // Optional, the cache can be searched by it's descriptor if there is no handle to the cache for whatever reason
-	if (cache == NULL)
-	{
-		cache = find_in_linked_list(slab_caches, descriptor);
-	}
-
-	void *mem = find_free_slab(cache, bytes);
-    if (mem != NULL) cache->slab_allocs++;
-    // else if (cache->flags & SLAB_PANIC) panic("OOM");
-
-	organize_slab_states(cache);
-
-	return mem;
-}
-
-slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor)
-{
-	slab_cache_t *current = cache;
-
-	while (current != NULL)
-	{
-		if (strcmp(current->descriptor, descriptor) == 0)
-			return current;
-
-		current = current->next;
-	}
-
-    __builtin_unreachable();
-}
-
-void *find_free_slab(slab_cache_t *cache, size_t bytes)
-{
-    // Search free array
-    for (size_t i = 0; i < cache->active_slabs; i++)
-    {
-        // if (cache->free[i].size >= bytes)
-        // {
-        //     cache->free[i].size -= bytes;
-        //     cache->free[i].num_objects--;
-        //     if (cache->free[i].mem[0] == SLAB_FREE_ENTRY)
-        //         // cache->free[i].mem[0] = PAGE_ALLOC(1);
-        //         cache->free[i].mem[0] = linear_alloc(bytes);
-
-        //     cache->free[i].is_allocated = true;
-        //     LOG("Found free slab object at index %ld - address %p\n", i, cache->free[i].mem[0]);
-        //     return (cache->free[i].mem[0]);
-        // }
-    }
-
-    // TODO: partial and full
-}
-
-void organize_slab_states(slab_cache_t *cache)
-{
-    // for (size_t i = 0; i < cache->active_slabs; i++)
-    // {
-    //     if (cache->free[i].mem[0] != SLAB_FREE_ENTRY)
-    //     {
-    //         LOG("* Not -1 %p\n", cache->free[i].mem[0]);
-    //         // It is assumed the first index in the freelist is always usable.
-    //         // Since this function is called right after find_free_slab it is impossible
-    //         // to have multiple allocated objects at once.
-    //         if (cache->free[i].is_allocated) {
-    //             // TODO: include partial if possible in moving
-    //             // TODO: the mem members are only 4096 bytes larged, check if this might overflow!
-    //             cache->used[i].num_objects++;
-    //             cache->used[i].mem[cache->used[i].num_objects] = cache->free[i].mem[0];
-    //             cache->free[i].mem[0] = SLAB_FREE_ENTRY;
-    //         }
-    //     }
-    // }
-
-    // TODO: partial and full
-}
-
-void slab_cache_free(slab_cache_t *cache)
-{
-    // free object and return it to the cache
-    // stuff to do:
-    //  - increase slab_frees and decrease slab_allocs
-
 }

@@ -6,20 +6,28 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "list.h"
 
 #define LOG(...) printf(__VA_ARGS__)
+#define BUG(...) { printf("\033[31mBUG:\033[39m "); printf(__VA_ARGS__); exit(2); }
 #define PAGE_ALLOC(pages) malloc(4096 * pages)
 #define PAGE_FREE(ptr) free(ptr);
 
 // Todo: Define a bitmask for each slab cache to use
 // such as panic if no free mem, allocation type (Kernel, user, dma, etc)
 
-// Todo: We might want to use 
-// something like the bufctl here:
-// http://src.illumos.org/source/xref/illumos-gate/usr/src/uts/common/sys/kmem_impl.h?r=dfec2ecf#118
+// (internal) Linear allocator specific
+#define LINEAR_ARENA_SIZE 4096
+#define ARENA_PADDING 1     // Let's add 1 page (4 kb) to allocate linked list specific structures such as nodes.
+                            // The max memory a slab may hold is 128kb, hence we cannot use:
+                            // 'LINEAR_MAX_ARENAS' for both objects *and* linked list specific structures
 
+#define LINEAR_MAX_ARENAS 32 + ARENA_PADDING    // Max number of arenas are 4096 * 32 bytes of memory
+                                                // per cache (128 kb) + 4kb for internal structures (see comment above)
 
+#define LINEAR_INTERNAL_ARENA 0 // An arena[0] is always reserved for internal allocations (nodes, etc).
+                                // It should NOT be used to allocate objects, it's why the ARENA_PADDING exists
+
+// Slab allocator specific
 #define MAX_SLABS_PER_STATE  5 // 5 slabs per slab_state_t
 #define MAX_OBJECTS_PER_SLAB 5 // 5 objects per slab_t
 #define MAX_CREATABLE_SLABS_PER_CACHE 4096 // 4096 slabs per cache are the max limit
@@ -54,7 +62,7 @@ typedef struct
     int num_objects;
 
     /* Flags */
-    bool is_allocated; // True if an object was allocated in the free slab
+    bool is_allocated;
 } slab_object_t;
 
 // Represents a slab itself, a slab state (full,partial,used) may have multiple struct slab's (i.e. a linked list)
@@ -72,7 +80,7 @@ typedef struct slab_state
     struct slab_state *next;
 } slab_state_layer_t;
 
-// Slab cache (Contains multiple slab_t's)
+// Slab cache, also known as kmem_cache in linux
 struct slab_cache
 {
     /* Statistics */
@@ -94,19 +102,21 @@ struct slab_cache
     slab_state_layer_t *free;
     slab_state_layer_t *used;
     slab_state_layer_t *partial;
+
+    /* Internal */
+    uint32_t *list_arena[LINEAR_MAX_ARENAS];    // Used by the linear allocator for fine grain allocations
+    uint32_t list_arena_ptr[LINEAR_MAX_ARENAS];
 };
 
+/* Core */
 void slab_init(void);
 void slab_destroy(slab_cache_t *cache);
-slab_cache_t *get_previous_cache(slab_cache_t *cache);
 void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes);
-slab_cache_t *find_in_linked_list(slab_cache_t *cache, const char *descriptor);
-void *find_free_slab(slab_cache_t *cache, size_t bytes);
-void organize_slab_states(slab_cache_t *cache);
-void slab_cache_free(slab_cache_t *cache);
-void append_to_global_cache(slab_cache_t *cache);
 slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor);
 
+/* Utility */
+void append_to_global_cache(slab_cache_t *cache);
+slab_cache_t *get_previous_cache(slab_cache_t *cache);
 void slab_traverse_cache(slab_cache_t* cache);
 
 #endif // SLAB_H
