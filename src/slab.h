@@ -89,8 +89,7 @@ struct slab_cache
     uint64_t slab_destroys;  // Total nr of destroyed slabs
     uint64_t slab_allocs;    // Total nr of allocated slabs
     uint64_t slab_frees;     // Total nr of free'd slabs
-    uint64_t cache_size;     // Size of the cache in bytes
-
+    
     /* Cache properties */
     const char *descriptor;
     struct slab_cache *prev;

@@ -67,7 +67,6 @@ void slab_traverse_cache(slab_cache_t* cache)
         }
 
         LOG("=== Cache statistics ===\n");
-        LOG("* Cache size: %ld\n", cache->cache_size);
         LOG("* No. Active slabs: %5ld\n", cache->active_slabs);
         LOG("* No. Created slabs: %4ld\n", cache->slab_creates);
         LOG("* No. Destroyed slabs: %2ld\n", cache->slab_destroys);
@@ -167,12 +166,11 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
     cache->slab_destroys = 0;
     cache->slab_allocs = 0;
     cache->slab_frees = 0;
-    cache->cache_size = 0;
 
     /* Cache properties */
     cache->descriptor = descriptor;
     cache->next = NULL;
-    cache->prev = get_previous_cache(slab_caches); // TODO: Set the previous node accordingly, so just traverse the slab_caches list until you hit NULL, then set the previous cache.
+    cache->prev = get_previous_cache(slab_caches);
     cache->constructor = constructor;
     cache->destructor  = destructor;
 
