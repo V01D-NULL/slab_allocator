@@ -1,5 +1,5 @@
 CC = @gcc
-CFLAGS = -O2 -g
+CFLAGS = -O2 -g -fsanitize=undefined
 
 SRC = $(shell find . -type f -name '*.c')
 OBJ = $(SRC:.c=.c.o)
@@ -19,5 +19,5 @@ clean: $(OBJ)
 
 $(FINAL): $(OBJ)
 	@printf "Linking...\n"
-	$(CC) $^ -o $@
+	$(CC) $^ -lubsan -o $@
 	@printf "Linking complete\n"
