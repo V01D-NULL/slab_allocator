@@ -1,3 +1,4 @@
 *.o
 test_slab
 doc/SlabAllocator.code-workspace
+.vscode/

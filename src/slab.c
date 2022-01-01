@@ -3,37 +3,27 @@
 #include <string.h>
 #include <stdbool.h>
 
-slab_t *create_slab();
+slab_t *create_slab(size_t size);
 static inline bool is_page_aligned(int _)
 {
     return (_ % 4096) == 0;
 }
 
-// linear allocation works visualized like this:
-// [+++++++++++++++++++++++++]                          <- Memory in our case arena (+ means free, * means allocated)
-//  ^                                                   <- Pointer to current free address in our case arena_pointer
-
-// After allocating a few bytes, it could look like this:
-// [***********++++++++++++++++]
-//             ^
-__attribute__((always_inline))
-static inline void *linear_alloc(uint32_t *arena[], uint32_t arena_pointer[], int which_arena, size_t bytes)
+static inline void append(slab_t **ref, slab_t *new_node)
 {
-    if (arena_pointer[which_arena] + bytes >=  LINEAR_ARENA_SIZE)
-    {
-        if (which_arena == LINEAR_INTERNAL_ARENA)
-            BUG("Allocated more internal memory than there is available!\nIncrease value of the 'ARENA_PADDING' macro\n");
+    slab_t *tail = *ref;
 
-        // If we get here, we have wasted 64 kb of memory on a single cache.
-        // Investegate this if it ever happens and bump up the limit
-        if (which_arena == LINEAR_MAX_ARENAS)
-            return NULL;
-        
-        which_arena += 1;
+    if (*ref == NULL)
+    {
+        *ref = new_node;
+        return;
     }
     
-    arena_pointer[which_arena] += bytes;
-    return (void*)((uintptr_t)arena[which_arena] + arena_pointer[which_arena]);
+    while (tail->next != NULL) {
+        tail = tail->next;
+    }
+    
+    tail->next = new_node;
 }
 
 /* Linked list of slab caches */
@@ -141,25 +131,8 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
             pages_to_alloc = size / 4096;
         else
             return NULL;
-
-    // We need these to allocate the cache, then they will
-    // be copied to the cache's arena & arena_ptr members.
-    uint32_t *local_list_arena[LINEAR_MAX_ARENAS];
-    uint32_t local_list_arena_ptr[LINEAR_MAX_ARENAS] = {0};
     
-    // Index 0 is reserved for internal allocations of nodes and alike, do NOT use this for objects
-    local_list_arena[0] = PAGE_ALLOC(1);
-
-    for (size_t i = 1; i < pages_to_alloc+1; i++)
-    {
-        local_list_arena[i] = PAGE_ALLOC(1);
-    }
-    
-    // When this cache is destroyed, we search for NULL to know when to stop freeing arena memory
-    if (pages_to_alloc < LINEAR_MAX_ARENAS)
-        local_list_arena[pages_to_alloc + 2] = NULL;
-    
-    slab_cache_t *cache = (slab_cache_t*)linear_alloc(local_list_arena, local_list_arena_ptr, LINEAR_INTERNAL_ARENA, sizeof(slab_cache_t));
+    slab_cache_t *cache = (slab_cache_t*)malloc(sizeof(slab_cache_t));
     
     /* Statistics */
     cache->slab_creates = 0;
@@ -179,23 +152,22 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
 
     /* Configure slab states */
     if (num_slabs > MAX_CREATABLE_SLABS_PER_CACHE) num_slabs = MAX_CREATABLE_SLABS_PER_CACHE;
-    cache->free    = (slab_state_layer_t*)linear_alloc(local_list_arena, local_list_arena_ptr, LINEAR_INTERNAL_ARENA, sizeof(slab_state_layer_t)*3);
-    cache->used    = (slab_state_layer_t*)linear_alloc(local_list_arena, local_list_arena_ptr, LINEAR_INTERNAL_ARENA, sizeof(slab_state_layer_t)*3);
-    cache->partial = (slab_state_layer_t*)linear_alloc(local_list_arena, local_list_arena_ptr, LINEAR_INTERNAL_ARENA, sizeof(slab_state_layer_t)*3);
+    cache->free    = (slab_state_layer_t*)malloc(sizeof(slab_state_layer_t));
+    cache->used    = (slab_state_layer_t*)malloc(sizeof(slab_state_layer_t));
+    cache->partial = (slab_state_layer_t*)malloc(sizeof(slab_state_layer_t));
     
-    slab_t *free_head = cache->free->head;
-    for (size_t i = 0; i < num_slabs; i++, cache->slab_creates++, cache->active_slabs++)
-    {
-        if (free_head == NULL) free_head = (slab_t*)linear_alloc(local_list_arena, local_list_arena_ptr, LINEAR_INTERNAL_ARENA, sizeof(slab_t));
-        free_head = create_slab();
-        free_head = free_head->next;
-    }
+    cache->free->head = (slab_t*)malloc(sizeof(slab_t));
+    slab_t *free_head = cache->free->head = create_slab(size);
 
-    /* Configure this cache's internal allocation arena */
-    for (size_t i = 0; i < pages_to_alloc; i++) {
-        cache->list_arena[i] = local_list_arena[i];
-        cache->list_arena_ptr[i] = local_list_arena_ptr[i];
-    }
+    for (size_t i = 0; i < num_slabs; i++, cache->slab_creates++)
+        append(&cache->free->head, create_slab(size));
+
+    cache->used->head = NULL;
+    cache->used->tail = NULL;
+    cache->used->next = NULL;
+    cache->partial->head = NULL;
+    cache->partial->tail = NULL;
+    cache->partial->next = NULL;
 
     return cache;
 }
@@ -232,14 +204,15 @@ void append_to_global_cache(slab_cache_t *cache)
     __builtin_unreachable();
 }
 
-slab_t *create_slab()
+slab_t *create_slab(size_t size)
 {
-    slab_t *slab = PAGE_ALLOC(1);
+    slab_t *slab = (slab_t*)malloc(sizeof(slab_t));
     for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
     {
         slab->objects[i].is_allocated = false;
-        slab->objects[i].num_objects++;
-        slab->objects[i].size = 0;
+        slab->objects[i].num_objects = 0;
+        slab->objects[i].size = size;
+        slab->objects[i].mem = malloc(size);
     }
     return slab;
 }
@@ -259,4 +232,20 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes
             construct the object;
         }
     */
+    // Todo: Search `slab_caches`
+    if (!cache) return NULL;
+
+
+
+    slab_t* partial = cache->partial->head;
+    if (!partial)
+    {
+        slab_t *free = cache->free->head;
+        if (free == NULL)
+            return NULL; // OOM
+        
+        partial = (slab_t*)malloc(sizeof(slab_t));
+        memcpy(partial, free, sizeof(slab_t));
+        // remove_head(&cache->free->head);
+    }
 }
