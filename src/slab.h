@@ -90,15 +90,21 @@ struct slab_cache
     slab_state_layer_t *partial;
 };
 
-/* Core */
+/* Core functions */
 void slab_init(void);
 void slab_destroy(slab_cache_t *cache);
-void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes);
 slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor);
+void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes);
 
-/* Utility */
+/* Utility functions */
+bool is_page_aligned(int n);
+bool is_base_two(int n);
+void append_slab(slab_t **ref, slab_t *new_node);
+void slab_traverse_cache(slab_cache_t *cache);
 void append_to_global_cache(slab_cache_t *cache);
 slab_cache_t *get_previous_cache(slab_cache_t *cache);
-void slab_traverse_cache(slab_cache_t* cache);
+slab_t *create_slab(size_t size);
+void remove_slab_head(slab_state_layer_t *state);
+bool is_partial_slab_full(slab_cache_t *state);
 
 #endif // SLAB_H

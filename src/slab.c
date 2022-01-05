@@ -3,18 +3,157 @@
 #include <string.h>
 #include <stdbool.h>
 
-slab_t *create_slab(size_t size);
-static inline bool is_page_aligned(int _)
+/* Linked list of slab caches */
+static slab_cache_t *slab_caches;
+
+/* Core functions */
+
+void slab_init(void)
 {
-	return (_ % 4096) == 0;
+
+	/*  linux kernel
+
+	    #define MAX_NUMNODES 5   // 5 from a userland example
+
+	    #define NUM_INIT_LISTS (2 * MAX_NUMNODES)
+
+	    void __init kmem_cache_init(void)
+	    {
+	    for (i = 0; i < NUM_INIT_LISTS; i++)
+	        kmem_cache_node_init(&init_kmem_cache_node[i]);
+
+	    /* Bootstrap is tricky, because several objects are allocated
+	    from caches that do not exist yet:
+	    1) initialize the kmem_cache cache: it contains the struct
+	     kmem_cache structures of all caches, except kmem_cache itself:
+	     kmem_cache is statically allocated.
+	     Initially an __init data area is used for the head array and the
+	     kmem_cache_node structures, it's replaced with a kmalloc allocated
+	     array at the end of the bootstrap.
+	    2) Create the first kmalloc cache.
+	     The struct kmem_cache for the new cache is allocated normally.
+	     An __init data area is used for the head array.
+	    3) Create the remaining kmalloc caches, with minimally sized
+	     head arrays.
+	    4) Replace the __init data head arrays for kmem_cache and the first
+	     kmalloc cache with kmalloc allocated arrays.
+	    5) Replace the __init data for kmem_cache_node for kmem_cache and
+	     the other cache's with kmalloc allocated memory.
+	    6) Resize the head arrays of the kmalloc caches to their final sizes.
+
+	    }
+	*/
+
+	slab_caches = PAGE_ALLOC(1);
 }
 
-static inline bool is_base_two(int _)
+void slab_destroy(slab_cache_t *cache)
 {
-	return (_ != 0) && ((_ & (_ - 1)) == 0);
+	if (cache == NULL)
+	{
+		LOG("slab_destroy: Cannot destory invalid cache of type NULL!\n");
+		return;
+	}
 }
 
-static inline void append(slab_t **ref, slab_t *new_node)
+slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor)
+{
+	if (!is_base_two(size) || (size > 4096 && !is_page_aligned(size)))
+		return NULL;
+
+	slab_cache_t *cache = (slab_cache_t*)malloc(sizeof(slab_cache_t));
+
+	/* Statistics */
+	cache->slab_creates = 0;
+	cache->slab_destroys = 0;
+	cache->slab_allocs = 0;
+	cache->slab_frees = 0;
+
+	/* Cache properties */
+	cache->descriptor = descriptor;
+	cache->next = NULL;
+	cache->prev = get_previous_cache(slab_caches);
+	cache->constructor = constructor;
+	cache->destructor  = destructor;
+
+	/* Append new cache to "global" system cache (slab_caches) */
+	append_to_global_cache(cache);
+
+	/* Configure slab states */
+	if (num_slabs > MAX_CREATABLE_SLABS_PER_CACHE)
+		num_slabs = MAX_CREATABLE_SLABS_PER_CACHE;
+
+	cache->free    = (slab_state_layer_t*)malloc(sizeof(slab_state_layer_t));
+	cache->used    = (slab_state_layer_t*)malloc(sizeof(slab_state_layer_t));
+	cache->partial = (slab_state_layer_t*)malloc(sizeof(slab_state_layer_t));
+
+	cache->free->head = (slab_t*)malloc(sizeof(slab_t));
+	slab_t *free_head = cache->free->head = create_slab(size);
+
+	for (size_t i = 0; i < num_slabs; i++, cache->slab_creates++)
+		append_slab(&cache->free->head, create_slab(size));
+
+	int pages_to_alloc = size > 4096 ? size / 4096 : 1;
+	void *page = PAGE_ALLOC(pages_to_alloc);
+
+	// this loops as many times as size fits into pages_to_alloc
+	for (int i = 0; i < pages_to_alloc * 4096 / size; i++, page += size)
+	{
+		// TODO: use memcpy to copy page into current slab to fill it with memory
+	}
+
+	cache->used->head = NULL;
+	cache->used->tail = NULL;
+	cache->used->next = NULL;
+	cache->partial->head = NULL;
+	cache->partial->tail = NULL;
+	cache->partial->next = NULL;
+
+	return cache;
+}
+
+void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
+{
+	// TODO STEPS
+	// 1. search partial slab for object with size = bytes
+	// 2. use mem but before
+	// 3. check if partial slab (not cache) is full (all objects is_allocated = true)
+	// 4. if yes -> move slab to full slab layer
+	// 5. check if full slab layer has slabs left
+	// 6. if no -> allocate a new one
+
+	// Todo: Search `slab_caches`
+	if (!cache)
+		return NULL;
+
+	slab_t* partial = cache->partial->head;
+
+	if (!partial)
+	{
+		slab_t *free = cache->free->head;
+
+		if (free == NULL)
+			return NULL; // we are out of memory
+
+		partial = (slab_t*)malloc(sizeof(slab_t));
+		memcpy(partial, free, sizeof(slab_t));
+		remove_slab_head(cache->free);
+	}
+}
+
+/* Utility functions */
+
+bool is_page_aligned(int n)
+{
+	return (n % 4096) == 0;
+}
+
+bool is_base_two(int n)
+{
+	return (n != 0) && ((n & (n - 1)) == 0);
+}
+
+void append_slab(slab_t **ref, slab_t *new_node)
 {
 	slab_t *tail = *ref;
 
@@ -30,10 +169,7 @@ static inline void append(slab_t **ref, slab_t *new_node)
 	tail->next = new_node;
 }
 
-/* Linked list of slab caches */
-static slab_cache_t *slab_caches;
-
-void slab_traverse_cache(slab_cache_t* cache)
+void slab_traverse_cache(slab_cache_t *cache)
 {
 	/* Just log this cache */
 	if (cache != NULL)
@@ -78,131 +214,6 @@ void slab_traverse_cache(slab_cache_t* cache)
 
 		}
 	}
-}
-
-void slab_init(void)
-{
-	slab_caches = PAGE_ALLOC(1);
-}
-
-/*  linux kernel
-
-    #define MAX_NUMNODES 5   // 5 from a userland example
-
-    #define NUM_INIT_LISTS (2 * MAX_NUMNODES)
-
-    void __init kmem_cache_init(void)
-    {
-    for (i = 0; i < NUM_INIT_LISTS; i++)
-            kmem_cache_node_init(&init_kmem_cache_node[i]);
-
-    /* Bootstrap is tricky, because several objects are allocated
-	  from caches that do not exist yet:
-	  1) initialize the kmem_cache cache: it contains the struct
-	     kmem_cache structures of all caches, except kmem_cache itself:
-	     kmem_cache is statically allocated.
-	     Initially an __init data area is used for the head array and the
-	     kmem_cache_node structures, it's replaced with a kmalloc allocated
-	     array at the end of the bootstrap.
-	  2) Create the first kmalloc cache.
-	     The struct kmem_cache for the new cache is allocated normally.
-	     An __init data area is used for the head array.
-	  3) Create the remaining kmalloc caches, with minimally sized
-	     head arrays.
-	  4) Replace the __init data head arrays for kmem_cache and the first
-	     kmalloc cache with kmalloc allocated arrays.
-	  5) Replace the __init data for kmem_cache_node for kmem_cache and
-	     the other cache's with kmalloc allocated memory.
-	  6) Resize the head arrays of the kmalloc caches to their final sizes.
-
-    }
-*/
-
-void slab_destroy(slab_cache_t *cache)
-{
-	if (cache == NULL)
-	{
-		LOG("slab_destroy: Cannot destory invalid cache of type NULL!\n");
-		return;
-	}
-}
-
-slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor)
-{
-	// Any slab size greater than 4096 bytes must be page aligned.
-	// size_t pages_to_alloc = 1;
-	// if (size > 4096)
-	//     if (is_page_aligned(size))
-	//         pages_to_alloc = size / 4096;
-	//     else
-	//         return NULL;
-	//
-	// slab_cache_t *cache = (slab_cache_t*)malloc(sizeof(slab_cache_t));
-	/*
-	    create_cache(size):
-		is_page_aligned ? continue : return null;
-		ulong *page = pmm_alloc();
-		foreach (slab in calc_slabs_needed(size, cache))
-			memcpy(slab, page, size);
-	        page += size;
-
-		return cache;
-	*/
-
-	// TODO: currently, this method is for max one page
-
-	if (!is_base_two(size))
-		return NULL;
-
-	int pages_to_alloc = size > 4096 ? size / 4096 : 1;
-	void *page = PAGE_ALLOC(pages_to_alloc);
-	// slab_cache_t *cache = blah
-
-	// this loops as many times as size fits into pages_to_alloc
-	for (int i = 0; i < pages_to_alloc * 4096 / size; i++, page += size)
-	{
-		// memcpy(cache,
-	}
-
-
-	/* Statistics */
-	cache->slab_creates = 0;
-	cache->slab_destroys = 0;
-	cache->slab_allocs = 0;
-	cache->slab_frees = 0;
-
-	/* Cache properties */
-	cache->descriptor = descriptor;
-	cache->next = NULL;
-	cache->prev = get_previous_cache(slab_caches);
-	cache->constructor = constructor;
-	cache->destructor  = destructor;
-
-	/* Append new cache to "global" system cache (slab_caches) */
-	append_to_global_cache(cache);
-
-	/* Configure slab states */
-	if (num_slabs > MAX_CREATABLE_SLABS_PER_CACHE)
-		num_slabs = MAX_CREATABLE_SLABS_PER_CACHE;
-
-	cache->free    = (slab_state_layer_t*)malloc(sizeof(slab_state_layer_t));
-	cache->used    = (slab_state_layer_t*)malloc(sizeof(slab_state_layer_t));
-	cache->partial = (slab_state_layer_t*)malloc(sizeof(slab_state_layer_t));
-
-	cache->free->head = (slab_t*)malloc(sizeof(slab_t));
-	slab_t *free_head = cache->free->head = create_slab(size);
-
-	for (size_t i = 0; i < num_slabs; i++, cache->slab_creates++)
-		append(&cache->free->head, create_slab(size));
-
-	cache->used->head = NULL;
-	cache->used->tail = NULL;
-	cache->used->next = NULL;
-	cache->partial->head = NULL;
-	cache->partial->tail = NULL;
-	cache->partial->next = NULL;
-
-	return cache;
 }
 
 slab_cache_t *get_previous_cache(slab_cache_t *cache)
@@ -253,35 +264,9 @@ slab_t *create_slab(size_t size)
 	return slab;
 }
 
-void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
+void remove_slab_head(slab_state_layer_t *state)
 {
-	// TODO STEPS
-	// 1. search partial slab for object with size = bytes
-	// 2. use mem but before
-	// 3. check if partial slab (not cache) is full (all objects is_allocated = true)
-	// 4. if yes -> move slab to full slab layer
-	// 5. check if full slab layer has slabs left
-	// 6. if no -> allocate a new one
-
-	// Todo: Search `slab_caches`
-	if (!cache)
-		return NULL;
-
-
-
-	slab_t* partial = cache->partial->head;
-
-	if (!partial)
-	{
-		slab_t *free = cache->free->head;
-
-		if (free == NULL)
-			return NULL; // OOM
-
-		partial = (slab_t*)malloc(sizeof(slab_t));
-		memcpy(partial, free, sizeof(slab_t));
-		// remove_head(&cache->free->head);
-	}
+	state->head = state->head->next;
 }
 
 bool is_partial_slab_full(slab_cache_t *cache)
