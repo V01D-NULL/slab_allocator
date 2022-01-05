@@ -150,6 +150,7 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes
 
 
 	/* 2. search partial slab for object wtih size = bytes */
+	// TODO: changing partial->head to partial->head->next probably deletes it
 	while (partial->next != NULL)
 	{
 		while (partial->head->next != partial->tail)
@@ -200,7 +201,7 @@ end:
 	{
 		/* 5. move slab to full slab layer */
 		append_slab(&used->head, partial->head);
-		partial->head = partial->head->next;
+		remove_slab_head(partial);
 
 		/* 6. check if full slab layer has slabs left */
 
