@@ -120,17 +120,20 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes
 	// 2. search partial slab for object with size = bytes
 	// 3. use mem but before returning
 	// 4. check if partial slab (not cache) is full (all objects is_allocated = true)
-	// 5. if yes -> move slab to full slab layer
-	// 6. check if full slab layer has slabs left
+	// 5. if yes -> move slab to used slab layer
+	// 6. check if used slab layer has slabs left
 	// 7. if no -> allocate a new one
 
 	// TODO: Search `slab_caches`
-	
+
 	/* 0. check if cache and partial slab are existent */
 	if (!cache)
 		return NULL;
 
-	slab_t* partial = cache->partial;
+	slab_state_layer_t *partial = cache->partial;
+	slab_state_layer_t *used = cache->used;
+
+	void *mem = NULL;
 
 	/* 1. if no -> allocate new slab */
 	if (!partial->head)
@@ -147,13 +150,65 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes
 
 
 	/* 2. search partial slab for object wtih size = bytes */
-	void *mem = search_partial_for_size(bytes);
+	while (partial->next != NULL)
+	{
+		while (partial->head->next != partial->tail)
+		{
+			for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
+			{
+				if (partial->head->objects[i].size == bytes)
+				{
+					/* 3. use mem */
+					mem = partial->head->objects[i].mem;
 
-	/* 4. check if partial slab (not cache) is full */	
+					goto end;
+				}
+
+			}
+
+			partial->head = partial->head->next;
+		}
+
+		partial = partial->next;
+	}
+
+end:
+
+	if (!mem)
+	{
+		fprintf(stderr, "Couldn't find object in all slabs with fitting size!\n");
+		// exit(1);
+
+		return NULL;
+	}
+
+	/* 4. check if partial slab (not cache) is full */
+	bool is_full = true;
+
 	for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
 	{
-		if (partial->head
+		if (!partial->head->objects[i].is_allocated)
+			is_full = false;
 	}
+
+	// 4. check if partial slab (not cache) is full (all objects is_allocated = true)
+	// 5. if yes -> move slab to full slab layer
+	// 6. check if full slab layer has slabs left
+	// 7. if no -> allocate a new one
+
+	if (is_full)
+	{
+		/* 5. move slab to full slab layer */
+		append_slab(&used->head, partial->head);
+		partial->head = partial->head->next;
+
+		/* 6. check if full slab layer has slabs left */
+
+		// ?????????????
+	}
+
+
+	return mem;
 }
 
 /* Utility functions */
@@ -295,29 +350,4 @@ bool is_partial_slab_full(slab_cache_t *cache)
 	}
 
 	return false;
-}
-
-void *search_partial_for_size(size_t bytes)
-{
-	while (partial->next != NULL)
-	{
-		while (partial->head->next != partial->tail)
-		{
-			for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
-			{
-				if (partial->head->objects[i]->size == bytes)
-					/* 3. use mem */
-					return partial->head->objects[i].mem;
-			
-			}
-
-			partial->head = partial->head->next;
-		}
-
-		partial = partial->next;
-	}
-
-	fprintf(stderr, "Couldn't find object in all slabs with fitting size!\n");
-	
-	return NULL;
 }

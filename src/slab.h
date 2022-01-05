@@ -106,6 +106,5 @@ slab_cache_t *get_previous_cache(slab_cache_t *cache);
 slab_t *create_slab(size_t size);
 void remove_slab_head(slab_state_layer_t *state);
 bool is_partial_slab_full(slab_cache_t *state);
-void *search_partial_for_size(size_t bytes);
 
 #endif // SLAB_H
