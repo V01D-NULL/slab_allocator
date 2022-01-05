@@ -9,6 +9,11 @@ static inline bool is_page_aligned(int _)
     return (_ % 4096) == 0;
 }
 
+static inline bool is_base_two(int _)
+{
+	return (_ != 0) && ((_ & (_ - 1)) == 0);
+}
+
 static inline void append(slab_t **ref, slab_t *new_node)
 {
     slab_t *tail = *ref;
@@ -125,14 +130,40 @@ void slab_destroy(slab_cache_t *cache)
 slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor)
 {
     // Any slab size greater than 4096 bytes must be page aligned.
-    size_t pages_to_alloc = 1;
-    if (size > 4096)
-        if (is_page_aligned(size))
-            pages_to_alloc = size / 4096;
-        else
-            return NULL;
-    
-    slab_cache_t *cache = (slab_cache_t*)malloc(sizeof(slab_cache_t));
+    // size_t pages_to_alloc = 1;
+    // if (size > 4096)
+    //     if (is_page_aligned(size))
+    //         pages_to_alloc = size / 4096;
+    //     else
+    //         return NULL;
+    // 
+    // slab_cache_t *cache = (slab_cache_t*)malloc(sizeof(slab_cache_t));
+	/*
+	create_cache(size):
+		is_page_aligned ? continue : return null;
+		ulong *page = pmm_alloc();
+		foreach (slab in calc_slabs_needed(size, cache))
+			memcpy(slab, page, size);
+	        page += size;
+		
+		return cache;	
+	*/
+
+	// TODO: currently, this method is for max one page
+	
+	if (!is_base_two(size))
+		return NULL;
+
+	int pages_to_alloc = size > 4096 ? size / 4096 : 1;
+	void *page = PAGE_ALLOC(pages_to_alloc);
+	// slab_cache_t *cache = blah
+
+	// this loops as many times as size fits into pages_to_alloc
+	for (int i = 0; i < pages_to_alloc * 4096 / size; i++, page += size)
+	{
+		// memcpy(cache,
+	}
+
     
     /* Statistics */
     cache->slab_creates = 0;
@@ -219,19 +250,14 @@ slab_t *create_slab(size_t size)
 
 void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
 {
-    /*
-        To allocate an object:
-        
-        if (there's an object in the cache)
-        {
-            take it (no construction required);
-        }
-        else
-        {
-            allocate memory;
-            construct the object;
-        }
-    */
+	// TODO STEPS
+	// 1. search partial slab for object with size = bytes
+	// 2. use mem but before
+	// 3. check if partial slab (not cache) is full (all objects is_allocated = true)
+	// 4. if yes -> move slab to full slab layer
+	// 5. check if full slab layer has slabs left
+	// 6. if no -> allocate a new one
+
     // Todo: Search `slab_caches`
     if (!cache) return NULL;
 
@@ -248,4 +274,17 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes
         memcpy(partial, free, sizeof(slab_t));
         // remove_head(&cache->free->head);
     }
+}
+
+bool is_partial_slab_full(slab_cache_t *cache)
+{
+	slab_state_layer_t *partial = cache->partial;
+
+	for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++, partial = partial->next)
+	{
+		if (partial->next == NULL && i == MAX_OBJECTS_PER_SLAB - 1)
+			return true;
+	}
+
+	return false;
 }

@@ -15,8 +15,9 @@ int main(int argc, char const *argv[])
         exit(1);
     }
     
-    // slab_traverse_cache(dummy_cache1);
+    slab_traverse_cache(dummy_cache1);
     slab_cache_alloc(dummy_cache1, NULL, 10);
+	slab_traverse_cache(dummy_cache1);
     // slab_cache_alloc(dummy_cache1, NULL, 12);
 
     return 0;
