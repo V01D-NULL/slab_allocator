@@ -304,7 +304,6 @@ slab_cache_t *get_previous_cache(slab_cache_t *cache)
 	__builtin_unreachable();
 }
 
-// TODO: this is probably not updating slab_caches
 void append_to_global_cache(slab_cache_t *cache)
 {
 	slab_cache_t *current = slab_caches;
@@ -341,20 +340,6 @@ slab_t *create_slab(size_t size, void *memory)
 void remove_slab_head(slab_state_layer_t *state)
 {
 	state->head = state->head->next;
-}
-
-// TODO: Fixme!
-bool is_partial_slab_full(slab_cache_t *cache)
-{
-	slab_state_layer_t *partial = cache->partial;
-
-	for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++, partial = partial->next)
-	{
-		if (partial->next == NULL && i == MAX_OBJECTS_PER_SLAB - 1)
-			return true;
-	}
-
-	return false;
 }
 
 // TODO: This is used to test whether the linked list can still be traversed in both directions.
