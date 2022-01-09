@@ -17,7 +17,7 @@
 
 #define MAX_SLABS_PER_STATE  5 // 5 slabs per slab_state_t
 #define MAX_OBJECTS_PER_SLAB 5 // 5 objects per slab_t
-#define MAX_CREATABLE_SLABS_PER_CACHE 4096 // 4096 slabs per cache are the max limit
+#define MAX_CREATABLE_SLABS_PER_CACHE 8 // 8 slabs per cache are the max limit
 #define SLAB_FREE_ENTRY (void*)-1
 #define ctor void (*constructor)(size_t)
 #define dtor void (*destructor )(size_t)
@@ -39,6 +39,7 @@ kmem_chain --|-- kmem_cache   |-- slabs_full
                                                            |-- chunk
 
 */
+
 typedef struct slab_cache slab_cache_t;
 
 // Represents an object of a given slab
@@ -64,6 +65,8 @@ typedef struct slab_state
 {
     slab_t *head;
     slab_t *tail;
+    bool is_full; // True if this slab state is full, use the next one if available.
+    struct slab_state *prev;
     struct slab_state *next;
 } slab_state_layer_t;
 
@@ -98,13 +101,14 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes
 
 /* Utility functions */
 bool is_page_aligned(int n);
-bool is_base_two(int n);
+bool is_power_of_two(int n);
 void append_slab(slab_t **ref, slab_t *new_node);
 void slab_traverse_cache(slab_cache_t *cache);
 void append_to_global_cache(slab_cache_t *cache);
 slab_cache_t *get_previous_cache(slab_cache_t *cache);
-slab_t *create_slab(size_t size);
+slab_t *create_slab(size_t size, void *memory);
 void remove_slab_head(slab_state_layer_t *state);
 bool is_partial_slab_full(slab_cache_t *state);
+void *search(slab_cache_t *cache, void *m);
 
 #endif // SLAB_H
