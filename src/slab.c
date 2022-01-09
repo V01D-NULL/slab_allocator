@@ -3,9 +3,6 @@
 #include <string.h>
 #include <stdbool.h>
 
-/* Utils */
-void update_slab_at(slab_t **head_ref, slab_t *new_node, int n);
-
 /* Linked list of slab caches */
 static slab_cache_t *slab_caches;
 
@@ -245,24 +242,6 @@ void append_slab(slab_t **ref, slab_t *new_node)
 		tail = tail->next;
 
 	tail->next = new_node;
-}
-
-void update_slab_at(slab_t **head_ref, slab_t *new_node, int which_slab)
-{
-	slab_t *head = *head_ref;
-
-	if (*head_ref == NULL)
-		return;
-
-	while (head->next != NULL)
-	{
-		if (which_slab-- == 0)
-			break;
-
-		head = head->next;
-	}
-
-	head->next = new_node;
 }
 
 void slab_traverse_cache(slab_cache_t *cache)
