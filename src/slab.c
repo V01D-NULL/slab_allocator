@@ -53,9 +53,13 @@ void slab_destroy(slab_cache_t *cache)
 		LOG("slab_destroy: Cannot destory invalid cache of type NULL!\n");
 		return;
 	}
+
+	// TODO:
+	// - (increment active_slabs)
+	// - increment slab_destroys
 }
 
-slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor)
+slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor)
 {
 	if (!is_power_of_two(size) || (size > 4096 && !is_page_aligned(size)))
 	{
@@ -66,7 +70,7 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
 	slab_cache_t *cache = (slab_cache_t *)malloc(sizeof(slab_cache_t));
 
 	/* Statistics */
-	cache->slab_creates = 0;
+	cache->slab_creates = num_slabs;
 	cache->slab_destroys = 0;
 	cache->slab_allocs = 0;
 	cache->slab_frees = 0;
@@ -111,7 +115,7 @@ slab_cache_t *slab_cache_create(const char *descriptor, size_t size, size_t num_
 	return cache;
 }
 
-void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
+void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
 {
 	// TODO STEPS
 	// 0. check if cache and partial slab are existent
@@ -127,8 +131,11 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes
 
 	int num_nodes = 0;
 
-	/* 0. check if cache and partial slab are existent */
+	/* 0. check if cache and partial slab are existent and check parameters */
 	if (!cache)
+		return NULL;
+
+	if (!is_power_of_two(bytes) || (bytes > 4096 && !is_page_aligned(bytes)))
 		return NULL;
 
 	slab_state_layer_t *partial = cache->partial;
@@ -196,7 +203,7 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes
 	}
 	while (partial != NULL);
 
-	// Todo: Search free slab
+	// TODO: Search free slab
 
 	if (!mem)
 	{
@@ -213,7 +220,17 @@ end:
 	//     remove_slab_head(partial);
 	// }
 
+	cache->active_slabs++;
+	cache->slab_allocs++;
+
 	return mem;
+}
+
+void slab_free(void)
+{
+	// TODO:
+	// - decrement active_slabs
+	// - increment slab_frees
 }
 
 /* Utility functions */
