@@ -183,7 +183,6 @@ void *slab_cache_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes
 						// Todo: Set the next partials prev pointer here.
 					}
 
-					num_nodes = 0;
 					goto end;
 				}
 
