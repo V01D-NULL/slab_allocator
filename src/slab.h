@@ -109,6 +109,5 @@ void append_to_global_cache(slab_cache_t *cache);
 slab_cache_t *get_previous_cache(slab_cache_t *cache);
 slab_t *create_slab(size_t size, void *memory);
 void remove_slab_head(slab_state_layer_t *state);
-void *search(slab_cache_t *cache, void *m);
 
 #endif // SLAB_H
