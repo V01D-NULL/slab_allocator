@@ -101,13 +101,6 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes);
 void slab_free(void);
 
 /* Utility functions */
-bool is_page_aligned(int n);
-bool is_power_of_two(int n);
-void append_slab(slab_t **ref, slab_t *new_node);
-void slab_traverse_cache(slab_cache_t *cache);
-void append_to_global_cache(slab_cache_t *cache);
-slab_cache_t *get_previous_cache(slab_cache_t *cache);
-slab_t *create_slab(size_t size, void *memory);
-void remove_slab_head(slab_state_layer_t *state);
+void print_slabs(slab_state_layer_t *type);
 
 #endif // SLAB_H

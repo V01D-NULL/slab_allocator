@@ -3,6 +3,16 @@
 #include <string.h>
 #include <stdbool.h>
 
+/* Utils */
+bool is_page_aligned(int n);
+bool is_power_of_two(int n);
+void append_slab(slab_t **ref, slab_t *new_node);
+void slab_traverse_cache(slab_cache_t *cache);
+void append_to_global_cache(slab_cache_t *cache);
+slab_cache_t *get_previous_cache(slab_cache_t *cache);
+slab_t *create_slab(size_t size, void *memory);
+void remove_slab_head(slab_state_layer_t *state);
+
 /* Linked list of slab caches */
 static slab_cache_t *slab_caches;
 
@@ -57,14 +67,13 @@ void slab_destroy(slab_cache_t *cache)
     // TODO:
     // - (decrement active_slabs)
     // - increment slab_destroys
-
 }
 
 slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor)
 {
-    if (!is_power_of_two(size) || (size > 4096 && !is_page_aligned(size)))
+    if (!is_power_of_two(size) || (size > 4096 && !is_page_aligned(size)) || num_slabs <= 0)
     {
-        LOG("slab_cache_create failed because %ld is not a power of two or not page aligned\n", size);
+        LOG("slab_cache_create failed because the parameter 'size' (%ld) is:\n1. not a power of two\n2. not page aligned or\n3. num_slabs is zero or negative\n", size);
         return NULL;
     }
 
@@ -153,12 +162,9 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
             return NULL; // we are out of memory
         }
 
-        if (!partial->head)
-        {
-            partial->head = (slab_t *)malloc(sizeof(slab_t));
-        }
+        partial->head = (slab_t *)malloc(sizeof(slab_t));
 
-        else if (partial->is_full)
+        if (partial->is_full)
         {
             partial->prev = partial;
             partial->is_full = false;
@@ -170,39 +176,36 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
         remove_slab_head(cache->free);
     }
 
-    do
+    for (;;)
     {
-        for (;;)
+        if (partial->head == NULL || partial->is_full)
+            break;
+
+        for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
         {
-            if (partial->head == NULL || partial->is_full)
-                break;
-
-            for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
+            if (bytes == partial->head->objects[i].size && !partial->head->objects[i].is_allocated)
             {
-                if (bytes == partial->head->objects[i].size && !partial->head->objects[i].is_allocated)
+                /* 3. use mem */
+                LOG("Got memory for partial slab #%d: %p\n", i + 1, partial->head->objects[i].mem);
+                mem = partial->head->objects[i].mem;
+                partial->head->objects[i].is_allocated = true;
+                cache->slab_allocs++;
+                // This partial slab is at the max, use the next available partial slab
+                if (i == MAX_OBJECTS_PER_SLAB - 1)
                 {
-                    /* 3. use mem */
-                    LOG("Got memory for partial slab #%d: %p\n", i + 1, partial->head->objects[i].mem);
-                    mem = partial->head->objects[i].mem;
-                    partial->head->objects[i].is_allocated = true;
-
-                    // This partial slab is at the max, use the next available partial slab
-                    if (i == MAX_OBJECTS_PER_SLAB - 1)
-                    {
-                        partial->is_full = true;
-                        // Note: never worry about prev pointers in partial slabs since the slabs objects
-                        // are all the same size and if a new partial slab needs to be created there is a full one; meaning it is in the full slab
-                    }
-
-                    goto end;
+                    partial->is_full = true;
+                    append_slab(&used->head, partial->head);
+                    remove_slab_head(partial);
+                    // Note: never worry about prev pointers in partial slabs since the slabs objects
+                    // are all the same size and if a new partial slab needs to be created there is a full one; meaning it is in the full slab
                 }
-            }
 
-            partial->head = partial->head->next;
+                goto end;
+            }
         }
 
-        partial = partial->next;
-    } while (partial != NULL);
+        partial->head = partial->head->next;
+    }
 
     // TODO: Search free slab
 
@@ -213,14 +216,6 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
     }
 
 end:
-    /* 4. check if partial slab is full */
-    // if (partial->is_full)
-    // {
-    //     /* 5. move slab to full slab layer */
-    //     append_slab(&used->head, partial->head);
-    //     remove_slab_head(partial);
-    // }
-
     cache->active_slabs++;
     cache->slab_allocs++;
 
@@ -358,4 +353,22 @@ slab_t *create_slab(size_t size, void *memory)
 void remove_slab_head(slab_state_layer_t *state)
 {
     state->head = state->head->next;
+}
+
+// Todo: Make this not modify the linked list.
+void print_slabs(slab_state_layer_t *type)
+{
+    for (;;)
+    {
+        for (int i = 0; i < MAX_SLABS_PER_STATE; i++)
+        {
+            if (!type->head)
+                return;
+            for (int j = 0; j < MAX_OBJECTS_PER_SLAB; j++)
+            {
+                LOG("[slab#%d] type->head[%d] = %p\n", i, j, type->head->objects[j].mem);
+            }
+            type->head = type->head->next;
+        }
+    }
 }
