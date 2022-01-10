@@ -21,6 +21,3 @@ $(FINAL): $(OBJ)
 	@printf "Linking...\n"
 	$(CC) $^ -lubsan -o $@
 	@printf "Linking complete\n"
-
-format:
-	astyle --mode=c -nA1TfpxgHxbxjxpS $(SRC)
