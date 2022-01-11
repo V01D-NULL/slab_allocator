@@ -408,26 +408,10 @@ void remove_slab_head(slab_state_layer_t *state)
     state->head = state->head->next;
 }
 
-
-// https://stackoverflow.com/questions/10657546/copy-to-void-pointer   --- (copy TO void pointer; could still work though)
-
-// void cache_copy;
-// memcpy(cache_copy, &cache, sizeof(void));
-// This way you don't have to worry about byte alignment or other potential gotchas.
-
-// or
-
-// *(int *)cache_copy = r;
-
-
-
-// https://stackoverflow.com/questions/33721361/how-to-get-copy-of-void-pointer-data
-
-// Todo: Make this not modify the linked list.
 void print_slabs(slab_state_layer_t *t)
 {
     slab_state_layer_t *type = malloc(sizeof(t));
-    memcpy(type, &t, sizeof(t));
+    memcpy(type, t, sizeof(t));
  
     for (;;)
     {
@@ -442,4 +426,5 @@ void print_slabs(slab_state_layer_t *t)
             type->head = type->head->next;
         }
     }
+    free(type);
 }

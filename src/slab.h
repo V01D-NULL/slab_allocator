@@ -102,6 +102,6 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes);
 void slab_free(slab_cache_t *cache, void *ptr);
 
 /* Utility functions */
-void print_slabs(slab_state_layer_t *type);
+void print_slabs(slab_state_layer_t *t);
 
 #endif // SLAB_H
