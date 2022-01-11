@@ -66,6 +66,7 @@ typedef struct slab_state
     slab_t *head;
     slab_t *tail;
     bool is_full; // True if this slab state is full, use the next one if available.
+    bool is_empty;
     struct slab_state *prev;
     struct slab_state *next;
 } slab_state_layer_t;
@@ -74,7 +75,7 @@ typedef struct slab_state
 struct slab_cache
 {
     /* Statistics */
-    uint64_t active_slabs;   // Nr of active slabs (i.e. number of slabs that haven't been destroyed)
+    uint64_t active_slabs;   // 
     uint64_t slab_creates;   // Total nr of created slabs
     uint64_t slab_destroys;  // Total nr of destroyed slabs
     uint64_t slab_allocs;    // Total nr of allocated slabs
@@ -88,9 +89,9 @@ struct slab_cache
     dtor; // Called when an object is (indefinitely) destroyed
 
     /* Slab layer */
-    slab_state_layer_t *free;
-    slab_state_layer_t *used;
-    slab_state_layer_t *partial;
+    slab_state_layer_t *free    __attribute__((aligned(16)));
+    slab_state_layer_t *used    __attribute__((aligned(16)));
+    slab_state_layer_t *partial __attribute__((aligned(16)));
 };
 
 /* Core functions */
@@ -98,7 +99,7 @@ void slab_init(void);
 void slab_destroy(slab_cache_t *cache);
 slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor);
 void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes);
-void slab_free(void);
+void slab_free(slab_cache_t *cache, void *ptr);
 
 /* Utility functions */
 void print_slabs(slab_state_layer_t *type);

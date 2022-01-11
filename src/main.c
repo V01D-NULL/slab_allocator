@@ -18,7 +18,7 @@ int main(int argc, char const *argv[])
 	}
 
     LOG("Dumping used slabs...\n");
-    print_slabs(dummy_cache1->used);
+    // print_slabs(dummy_cache1->used);
 
 
     LOG("Allocating all memory...\n");
@@ -29,7 +29,10 @@ int main(int argc, char const *argv[])
 			break;
 
     LOG("Dumping used slabs...\n");
-    print_slabs(dummy_cache1->used);
+    slab_state_layer_t *l = dummy_cache1->used;
+    print_slabs(l);
+    LOG("\n\n\n");
+    print_slabs(l);
 
 	return 0;
 }

@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-/* Utils */
+/* Utility functions */
 bool is_page_aligned(int n);
 bool is_power_of_two(int n);
 void append_slab(slab_t **ref, slab_t *new_node);
@@ -163,10 +163,9 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
         }
 
         partial->head = (slab_t *)malloc(sizeof(slab_t));
-
+    
         if (partial->is_full)
         {
-            partial->prev = partial;
             partial->is_full = false;
         }
 
@@ -190,8 +189,8 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
                 mem = partial->head->objects[i].mem;
                 partial->head->objects[i].is_allocated = true;
                 cache->slab_allocs++;
-                // This partial slab is at the max, use the next available partial slab
-                if (i == MAX_OBJECTS_PER_SLAB - 1)
+
+                if (i == MAX_OBJECTS_PER_SLAB - 1)  // TODO: this can't be right ()
                 {
                     partial->is_full = true;
                     append_slab(&used->head, partial->head);
@@ -216,18 +215,72 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
     }
 
 end:
+
     cache->active_slabs++;
     cache->slab_allocs++;
 
     return mem;
 }
 
-void slab_free(void)
+
+void slab_free(slab_cache_t *cache, void *ptr)
 {
-    // TODO:
-    // - decrement active_slabs
-    // - increment slab_frees
+    /*
+    *  Algorithm:
+    *   1. Traverse partial slab, search for an object who's 'mem' field contains 'ptr' and verify that it is allocated.
+    *     1.1 If we found something in the partial slab, mark the object as free. If the slab is completely free, move it to the free slab, otherwise do nothing and return.
+    * 
+    *   2. If searching the partial slab didn't yield any result, search the used slab and perform the same checks.
+    *     2.2 Mark the object in this slab as free and move it to the partial slab state.
+    * 
+    *   3. If neither the partial slab, nor the full slab yielded any result, the user attempted to free a free or invalid pointer. Return an error code.
+    */
+
+
+    // TODO: set `is_empty` everywhere where needed
+
+
+    if (!cache) return;
+
+    slab_state_layer_t *free = cache->free;
+    slab_state_layer_t *used = cache->used;
+    slab_state_layer_t *partial = cache->partial;
+
+    /* 1. Traverse partial slab */
+    for (;;)
+    {
+        if (partial->head == NULL)
+            break;
+
+        /* 1. Search for an object who's 'mem' field contains 'ptr' and verify that it is allocated */
+        for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
+        {
+            if (ptr == partial->head->objects[i].mem && partial->head->objects[i].is_allocated)
+            {
+                /* 1.1 If we found something in the partial slab, mark the object as free */
+
+                partial->head->objects[i].is_allocated = false;
+
+                cache->active_slabs--;
+                cache->slab_frees++;
+
+                if (i == MAX_OBJECTS_PER_SLAB - 1)
+                {
+                    /* 1.1 If the slab is completely free, move it to the free slab */
+                    append_slab(&free->head, partial->head);
+                    remove_slab_head(partial);
+                }
+
+                return;
+            }
+        }
+
+        partial->head = partial->head->next;
+    }
+
+    /* 2. Because searching the partial slab didn't yield any result, search the used slab and perform the same checks. */
 }
+
 
 /* Utility functions */
 bool is_page_aligned(int n)
@@ -355,9 +408,27 @@ void remove_slab_head(slab_state_layer_t *state)
     state->head = state->head->next;
 }
 
+
+// https://stackoverflow.com/questions/10657546/copy-to-void-pointer   --- (copy TO void pointer; could still work though)
+
+// void cache_copy;
+// memcpy(cache_copy, &cache, sizeof(void));
+// This way you don't have to worry about byte alignment or other potential gotchas.
+
+// or
+
+// *(int *)cache_copy = r;
+
+
+
+// https://stackoverflow.com/questions/33721361/how-to-get-copy-of-void-pointer-data
+
 // Todo: Make this not modify the linked list.
-void print_slabs(slab_state_layer_t *type)
+void print_slabs(slab_state_layer_t *t)
 {
+    slab_state_layer_t *type = malloc(sizeof(t));
+    memcpy(type, &t, sizeof(t));
+ 
     for (;;)
     {
         for (int i = 0; i < MAX_SLABS_PER_STATE; i++)
