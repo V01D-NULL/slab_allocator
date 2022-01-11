@@ -22,36 +22,36 @@ void slab_init(void)
 
     /*  linux kernel
 
-	    #define MAX_NUMNODES 5   // 5 from a userland example
+        #define MAX_NUMNODES 5   // 5 from a userland example
 
-	    #define NUM_INIT_LISTS (2 * MAX_NUMNODES)
+        #define NUM_INIT_LISTS (2 * MAX_NUMNODES)
 
-	    void __init kmem_cache_init(void)
-	    {
-	    for (i = 0; i < NUM_INIT_LISTS; i++)
-	        kmem_cache_node_init(&init_kmem_cache_node[i]);
+        void __init kmem_cache_init(void)
+        {
+        for (i = 0; i < NUM_INIT_LISTS; i++)
+            kmem_cache_node_init(&init_kmem_cache_node[i]);
 
-	    /* Bootstrap is tricky, because several objects are allocated
-	    from caches that do not exist yet:
-	    1) initialize the kmem_cache cache: it contains the struct
-	     kmem_cache structures of all caches, except kmem_cache itself:
-	     kmem_cache is statically allocated.
-	     Initially an __init data area is used for the head array and the
-	     kmem_cache_node structures, it's replaced with a kmalloc allocated
-	     array at the end of the bootstrap.
-	    2) Create the first kmalloc cache.
-	     The struct kmem_cache for the new cache is allocated normally.
-	     An __init data area is used for the head array.
-	    3) Create the remaining kmalloc caches, with minimally sized
-	     head arrays.
-	    4) Replace the __init data head arrays for kmem_cache and the first
-	     kmalloc cache with kmalloc allocated arrays.
-	    5) Replace the __init data for kmem_cache_node for kmem_cache and
-	     the other cache's with kmalloc allocated memory.
-	    6) Resize the head arrays of the kmalloc caches to their final sizes.
+        /* Bootstrap is tricky, because several objects are allocated
+        from caches that do not exist yet:
+        1) initialize the kmem_cache cache: it contains the struct
+         kmem_cache structures of all caches, except kmem_cache itself:
+         kmem_cache is statically allocated.
+         Initially an __init data area is used for the head array and the
+         kmem_cache_node structures, it's replaced with a kmalloc allocated
+         array at the end of the bootstrap.
+        2) Create the first kmalloc cache.
+         The struct kmem_cache for the new cache is allocated normally.
+         An __init data area is used for the head array.
+        3) Create the remaining kmalloc caches, with minimally sized
+         head arrays.
+        4) Replace the __init data head arrays for kmem_cache and the first
+         kmalloc cache with kmalloc allocated arrays.
+        5) Replace the __init data for kmem_cache_node for kmem_cache and
+         the other cache's with kmalloc allocated memory.
+        6) Resize the head arrays of the kmalloc caches to their final sizes.
 
-	    }
-	*/
+        }
+    */
 
     slab_caches = PAGE_ALLOC(1);
 }
@@ -190,7 +190,7 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
                 partial->head->objects[i].is_allocated = true;
                 cache->slab_allocs++;
 
-                if (i == MAX_OBJECTS_PER_SLAB - 1)  // TODO: this can't be right ()
+                if (i == MAX_OBJECTS_PER_SLAB - 1)
                 {
                     partial->is_full = true;
                     append_slab(&used->head, partial->head);
@@ -435,10 +435,10 @@ void print_slabs(slab_state_layer_t *t)
         {
             if (!type->head)
                 return;
+
             for (int j = 0; j < MAX_OBJECTS_PER_SLAB; j++)
-            {
                 LOG("[slab#%d] type->head[%d] = %p\n", i, j, type->head->objects[j].mem);
-            }
+
             type->head = type->head->next;
         }
     }
