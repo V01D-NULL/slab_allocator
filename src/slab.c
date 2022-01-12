@@ -189,7 +189,6 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
                 partial->head->objects[i].is_allocated = true;
                 cache->slab_allocs++;
 
-                // TODO: is this whole thing needed
                 if (i == MAX_OBJECTS_PER_SLAB - 1)
                 {
                     partial->is_full = true;
@@ -205,8 +204,6 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
 
         partial->head = partial->head->next;
     }
-
-    // TODO: Search free slab
 
     if (!mem)
     {
@@ -235,10 +232,6 @@ int slab_free(slab_cache_t *cache, void *ptr)
     * 
     *   3. If neither the partial slab, nor the full slab yielded any result, the user attempted to free a free or invalid pointer. Return an error code.
     */
-
-
-    // TODO: set `is_empty` everywhere where needed
-
 
     if (!cache)
         return 1;
