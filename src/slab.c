@@ -7,7 +7,6 @@
 bool is_page_aligned(int n);
 bool is_power_of_two(int n);
 void append_slab(slab_t **ref, slab_t *new_node);
-void slab_traverse_cache(slab_cache_t *cache);
 void append_to_global_cache(slab_cache_t *cache);
 slab_cache_t *get_previous_cache(slab_cache_t *cache);
 slab_t *create_slab(size_t size, void *memory);
@@ -190,6 +189,7 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
                 partial->head->objects[i].is_allocated = true;
                 cache->slab_allocs++;
 
+                // TODO: is this whole thing needed
                 if (i == MAX_OBJECTS_PER_SLAB - 1)
                 {
                     partial->is_full = true;
@@ -453,7 +453,7 @@ void print_slabs(slab_state_layer_t *t)
         {
             if (!type->head)
                 return;
-
+ 
             for (int j = 0; j < MAX_OBJECTS_PER_SLAB; j++)
                 LOG("[slab#%d] type->head[%d] = %p\n", i, j, type->head->objects[j].mem);
 
