@@ -99,7 +99,7 @@ void slab_init(void);
 void slab_destroy(slab_cache_t *cache);
 slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor);
 void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes);
-void slab_free(slab_cache_t *cache, void *ptr);
+int slab_free(slab_cache_t *cache, void *ptr);
 
 /* Utility functions */
 void print_slabs(slab_state_layer_t *t);

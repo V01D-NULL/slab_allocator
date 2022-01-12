@@ -223,7 +223,7 @@ end:
 }
 
 
-void slab_free(slab_cache_t *cache, void *ptr)
+int slab_free(slab_cache_t *cache, void *ptr)
 {
     /*
     *  Algorithm:
@@ -240,7 +240,8 @@ void slab_free(slab_cache_t *cache, void *ptr)
     // TODO: set `is_empty` everywhere where needed
 
 
-    if (!cache) return;
+    if (!cache)
+        return 1;
 
     slab_state_layer_t *free = cache->free;
     slab_state_layer_t *used = cache->used;
@@ -271,7 +272,7 @@ void slab_free(slab_cache_t *cache, void *ptr)
                     remove_slab_head(partial);
                 }
 
-                return;
+                return 0;
             }
         }
 
@@ -279,6 +280,39 @@ void slab_free(slab_cache_t *cache, void *ptr)
     }
 
     /* 2. Because searching the partial slab didn't yield any result, search the used slab and perform the same checks. */
+    for (;;)
+    {
+        if (used->head == NULL)
+            break;
+
+        for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
+        {
+            
+            if (ptr == used->head->objects[i].mem && used->head->objects[i].is_allocated)
+            {
+                /* 2.2 Mark the object in this slab as free */
+
+                used->head->objects[i].is_allocated = false;
+
+                cache->active_slabs--;
+                cache->slab_frees++;
+
+                if (i == MAX_OBJECTS_PER_SLAB - 1)
+                {
+                    /* 2.2. If the slab is completely free, move it to the partial slab state. */
+                    append_slab(&partial->head, used->head);
+                    remove_slab_head(used);
+                }
+
+                return 0;
+            }
+
+        }
+    }
+
+
+    /* 3. If neither the partial slab, nor the full slab yielded any result, the user attempted to free a free or invalid pointer. Return an error code. */
+    return 1;
 }
 
 
