@@ -25,6 +25,10 @@ int main(int argc, char const *argv[])
     // for (;;)
     //     if (slab_alloc(dummy_cache1, NULL, size) == NULL)
     //         break;
+
+    LOG("meooow\n");
+    slab_destroy(dummy_cache1);
+    LOG("wuuuf\n");
     
     void *ptr1 = slab_alloc(dummy_cache1, NULL, size);
     for (;;)
