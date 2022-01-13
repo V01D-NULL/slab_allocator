@@ -7,14 +7,22 @@
 bool is_page_aligned(int n);
 bool is_power_of_two(int n);
 void append_slab(slab_t **ref, slab_t *new_node);
-void append_to_global_cache(slab_cache_t *cache);
+void append_to_global_cache(slab_cache_t **ref, slab_cache_t *cache);
 int remove_from_global_cache(slab_cache_t *cache);
 slab_cache_t *get_previous_cache(slab_cache_t *cache);
 slab_t *create_slab(size_t size, void *memory);
 void remove_slab_head(slab_state_layer_t *state);
+bool is_slab_empty(slab_t *_slab);
 
 /* Linked list of slab caches */
-static slab_cache_t *slab_caches;
+struct cache_list
+{
+    slab_cache_t *caches;
+    slab_cache_t *head;
+    slab_cache_t *tail;
+};
+
+static struct cache_list *cache_list;
 
 /* Core functions */
 void slab_init(void)
@@ -53,7 +61,12 @@ void slab_init(void)
         }
     */
 
-    slab_caches = PAGE_ALLOC(1);
+    cache_list = malloc(sizeof(struct cache_list));
+    cache_list->caches = malloc(sizeof(slab_cache_t));
+    cache_list->caches->next = NULL;
+    cache_list->caches->prev = NULL;
+    cache_list->head = cache_list->caches;
+    cache_list->tail = cache_list->caches;
 }
 
 void slab_destroy(slab_cache_t *cache)
@@ -133,12 +146,12 @@ slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_
     /* Cache properties */
     cache->descriptor = descriptor;
     cache->next = NULL;
-    cache->prev = get_previous_cache(slab_caches);
+    cache->prev = get_previous_cache(cache_list->head);
     cache->constructor = constructor;
     cache->destructor = destructor;
 
     /* Append new cache to "global" system cache (slab_caches) */
-    append_to_global_cache(cache);
+    append_to_global_cache(&cache_list->caches, cache);
 
     /* Configure slab states */
     if (num_slabs > MAX_CREATABLE_SLABS_PER_CACHE)
@@ -208,7 +221,7 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
         }
 
         partial_slab_state->head = (slab_t *)malloc(sizeof(slab_t));
-    
+
         if (partial_slab_state->is_full)
         {
             partial_slab_state->is_full = false;
@@ -235,7 +248,6 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
                 partial_slab_state->head->objects[i].is_allocated = true;
                 cache->slab_allocs++;
 
-                // TODO: is this whole thing needed
                 if (i == MAX_OBJECTS_PER_SLAB - 1)
                 {
                     partial_slab_state->is_full = true;
@@ -244,15 +256,12 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
                     // Note: never worry about prev pointers in partial slabs since the slabs objects
                     // are all the same size and if a new partial slab needs to be created there is a full one; meaning it is in the full slab
                 }
-
                 goto end;
             }
         }
 
         partial_slab_state->head = partial_slab_state->head->next;
     }
-
-    // TODO: Search free slab
 
     if (!mem)
     {
@@ -268,7 +277,6 @@ end:
     return mem;
 }
 
-
 int slab_free(slab_cache_t *cache, void *ptr)
 {
     /*
@@ -281,10 +289,6 @@ int slab_free(slab_cache_t *cache, void *ptr)
     * 
     *   3. If neither the partial slab, nor the full slab yielded any result, the user attempted to free a free or invalid pointer. Return an error code.
     */
-
-
-    // TODO: set `is_empty` everywhere where needed
-
 
     if (!cache)
         return 1;
@@ -311,7 +315,7 @@ int slab_free(slab_cache_t *cache, void *ptr)
                 cache->active_slabs--;
                 cache->slab_frees++;
 
-                if (i == MAX_OBJECTS_PER_SLAB - 1)
+                if (is_slab_empty(partial_slab_state->head))
                 {
                     /* 1.1 If the slab is completely free, move it to the free slab */
                     append_slab(&free_slab_state->head, partial_slab_state->head);
@@ -333,7 +337,7 @@ int slab_free(slab_cache_t *cache, void *ptr)
 
         for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
         {
-            
+
             if (ptr == used_slab_state->head->objects[i].mem && used_slab_state->head->objects[i].is_allocated)
             {
                 /* 2.2 Mark the object in this slab as free */
@@ -352,15 +356,12 @@ int slab_free(slab_cache_t *cache, void *ptr)
 
                 return 0;
             }
-
         }
     }
-
 
     /* 3. If neither the partial slab, nor the full slab yielded any result, the user attempted to free a free or invalid pointer. Return an error code. */
     return 1;
 }
-
 
 /* Utility functions */
 bool is_page_aligned(int n)
@@ -377,7 +378,7 @@ void append_slab(slab_t **ref, slab_t *new_node)
 {
     slab_t *tail = *ref;
 
-    if (*ref == NULL)
+    if (!(*ref))
     {
         *ref = new_node;
         return;
@@ -397,23 +398,23 @@ void slab_traverse_cache(slab_cache_t *cache)
         LOG("=== Logging info for the slab cache \"%s\" ===\n", cache->descriptor);
         LOG("=== Dumping %ld slabs ===\n", cache->active_slabs);
 
-        for (size_t i = 0; i < cache->active_slabs; i++)
-        {
-            LOG("* Free slab nr:\n");
-            // LOG("* #%ld Total objects: %8d\n", i, cache->free[i].num_objects);
-            // LOG("* #%ld Assigned memory: %15p\n", i, cache->free[i].mem[i] == SLAB_FREE_ENTRY ? 0 : cache->free[i].mem[i]);
-            // LOG("* #%ld Size: %d\n\n", i, cache->free[i].size);
+        // for (size_t i = 0; i < cache->active_slabs; i++)
+        // {
+        // LOG("* Free slab nr:\n");
+        // LOG("* #%ld Total objects: %8d\n", i, cache->free[i].num_objects);
+        // LOG("* #%ld Assigned memory: %15p\n", i, cache->free[i].mem[i] == SLAB_FREE_ENTRY ? 0 : cache->free[i].mem[i]);
+        // LOG("* #%ld Size: %d\n\n", i, cache->free[i].size);
 
-            // LOG("* Used slab:\n");
-            // LOG("* #%ld Total objects: %8d\n", i, cache->used[i].num_objects);
-            // LOG("* #%ld Assigned memory: %15p\n", i, cache->used[i].mem[i] == SLAB_FREE_ENTRY ? 0 : cache->used[i].mem[i]);
-            // LOG("* #%ld Size: %d\n\n", i, cache->used[i].size);
+        // LOG("* Used slab:\n");
+        // LOG("* #%ld Total objects: %8d\n", i, cache->used[i].num_objects);
+        // LOG("* #%ld Assigned memory: %15p\n", i, cache->used[i].mem[i] == SLAB_FREE_ENTRY ? 0 : cache->used[i].mem[i]);
+        // LOG("* #%ld Size: %d\n\n", i, cache->used[i].size);
 
-            // LOG("* Partial slab:\n");
-            // LOG("* #%ld Total objects: %8d\n", i, cache->partial[i].num_objects);
-            // LOG("* #%ld Assigned memory: %15p\n", i, cache->partial[i].mem[i] == SLAB_FREE_ENTRY ? 0 : cache->partial[i].mem[i]);
-            // LOG("* #%ld Size: %d\n\n", i, cache->partial[i].size);
-        }
+        // LOG("* Partial slab:\n");
+        // LOG("* #%ld Total objects: %8d\n", i, cache->partial[i].num_objects);
+        // LOG("* #%ld Assigned memory: %15p\n", i, cache->partial[i].mem[i] == SLAB_FREE_ENTRY ? 0 : cache->partial[i].mem[i]);
+        // LOG("* #%ld Size: %d\n\n", i, cache->partial[i].size);
+        // }
 
         LOG("=== Cache statistics ===\n");
         LOG("* No. Active slabs: %5ld\n", cache->active_slabs);
@@ -441,24 +442,9 @@ slab_cache_t *get_previous_cache(slab_cache_t *cache)
     for (;;)
     {
         if (current->next == NULL)
-            return current;
-
-        current = current->next;
-    }
-
-    __builtin_unreachable();
-}
-
-void append_to_global_cache(slab_cache_t *cache)
-{
-    slab_cache_t *current = slab_caches;
-
-    for (;;)
-    {
-        if (current == NULL)
         {
-            current = cache;
-            return;
+            LOG("Found prev node (%s)\n", current->descriptor);
+            return current;
         }
 
         current = current->next;
@@ -467,21 +453,37 @@ void append_to_global_cache(slab_cache_t *cache)
     __builtin_unreachable();
 }
 
+void append_to_global_cache(slab_cache_t **ref, slab_cache_t *cache)
+{
+    if (!(*ref))
+        BUG("append_to_global_cache: Paremeter 'ref' is NULL"); // Should never happen
+
+    while ((*ref)->next != NULL)
+        *ref = (*ref)->next;
+
+    *ref = cache;
+    cache_list->tail = *ref;
+}
+
 int remove_from_global_cache(slab_cache_t *cache)
 {
-    slab_cache_t *current = slab_caches;
+    slab_cache_t *current = cache_list->head;
 
     for (;;)
     {
-        LOG("current: %s\n", current->descriptor);
-        LOG("cache: %s\n", cache->descriptor);
-        if (current == NULL)
+        // LOG("current->descriptor: %s\n", current->descriptor);
+        // LOG("cache->descriptor: %s\n", cache->descriptor);
+
+        if (!current || current->descriptor == NULL)
             return 1;
 
         if (strcmp(current->descriptor, cache->descriptor) == 0)
         {
+            LOG("OK %s\n", cache->descriptor);
             current->prev->next = cache->next;
-            current->next->prev = current->prev;
+
+            if (current->next)
+                current->next->prev = current->prev;
             return 0;
         }
 
@@ -501,7 +503,6 @@ slab_t *create_slab(size_t size, void *memory)
         slab->objects[i].num_objects = 0;
         slab->objects[i].size = size;
         slab->objects[i].mem = (void *)((uintptr_t)memory + (size * i));
-        // LOG("mem = %p\n", memory + (size * i));
     }
 
     return slab;
@@ -516,19 +517,65 @@ void print_slabs(slab_state_layer_t *t)
 {
     slab_state_layer_t *type = malloc(sizeof(t));
     memcpy(type, t, sizeof(t));
- 
+
     for (;;)
     {
         for (int i = 0; i < MAX_SLABS_PER_STATE; i++)
         {
             if (!type->head)
-                return;
- 
+                goto quit;
+
             for (int j = 0; j < MAX_OBJECTS_PER_SLAB; j++)
-                LOG("[slab#%d] type->head[%d] = %p\n", i, j, type->head->objects[j].mem);
+                LOG("[slab#%d] type->head[%d] = %p (is free = %d)\n", i, j, type->head->objects[j].mem, !type->head->objects[j].is_allocated);
 
             type->head = type->head->next;
         }
     }
+quit:
     free(type);
+}
+
+void print_caches(void)
+{
+    slab_cache_t *type = malloc(sizeof(cache_list->caches));
+    memcpy(type, cache_list->head, sizeof(cache_list->caches));
+
+    // LOG("%s\n", type->descriptor);
+
+    for (;;)
+    {
+        if (!type)
+            goto quit;
+
+        LOG("Found cache '%s'\n", type->descriptor);
+        type = type->next;
+    }
+quit:
+    free(type);
+}
+
+bool is_slab_empty(slab_t *_slab)
+{
+    slab_t *slab = malloc(sizeof(_slab));
+    memcpy(slab, _slab, sizeof(_slab));
+
+    for (;;)
+    {
+        if (!slab)
+        {
+            free(slab);
+            return true;
+        }
+
+        for (int i = 0; i < MAX_OBJECTS_PER_SLAB; i++)
+        {
+            if (slab->objects[i].is_allocated)
+            {
+                free(slab);
+                return false;
+            }
+        }
+
+        slab = slab->next;
+    }
 }

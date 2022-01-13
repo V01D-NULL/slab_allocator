@@ -104,5 +104,6 @@ int slab_free(slab_cache_t *cache, void *ptr);
 /* Utility functions */
 void slab_traverse_cache(slab_cache_t *cache);
 void print_slabs(slab_state_layer_t *t);
+void print_caches(void);
 
 #endif // SLAB_H

@@ -18,50 +18,21 @@ int main(int argc, char const *argv[])
         exit(1);
     }
 
-    LOG("Allocating all memory...\n");
-
+    slab_cache_t *fs = slab_create_cache("fs", size, 3, NULL, NULL);
+    if (!fs)
+    {
+        LOG("cache creation failed\n");
+        exit(1);
+    }
+    
     // Demo: Allocate memory from a partial slab. Take a free slab if
     // the partial slab is empty. Exits the program if no free slab is available.
     // for (;;)
-    //     if (slab_alloc(dummy_cache1, NULL, size) == NULL)
+    //     if (slab_alloc(fs, NULL, size) == NULL)
     //         break;
 
-    LOG("meooow\n");
+    slab_destroy(fs);
     slab_destroy(dummy_cache1);
-    LOG("wuuuf\n");
-    
-    void *ptr1 = slab_alloc(dummy_cache1, NULL, size);
-    for (;;)
-        if (slab_alloc(dummy_cache1, NULL, size) == NULL)
-            break;
-
-    LOG("\n++++++Dumping slab informations++++++\n");
-    slab_traverse_cache(dummy_cache1);
-
-    LOG("\n++++++Before alloc++++++\n");
-
-    LOG("Dumping partial slabs...\n");
-    print_slabs(dummy_cache1->partial);
-    LOG("\nDumping used slabs...\n");
-    print_slabs(dummy_cache1->used);
-    LOG("\nDumping free slabs...\n");
-    print_slabs(dummy_cache1->free);
-
-    LOG("\n++++++After alloc / Before free++++++\n");
-
-    LOG("Freeing first alloc ptr...\n");
-    int return_code = slab_free(dummy_cache1, ptr1);
-    LOG("Slab free returned: %d\n", return_code);
-
-    LOG("\n++++++After free++++++\n");
-
-    LOG("Dumping partial slabs...\n");
-    print_slabs(dummy_cache1->partial);
-    LOG("\nDumping used slabs...\n");
-    print_slabs(dummy_cache1->used);
-    LOG("\nDumping free slabs...\n");
-    print_slabs(dummy_cache1->free);
 
     return 0;
 }
-
