@@ -15,14 +15,8 @@ void remove_slab_head(slab_state_layer_t *state);
 bool is_slab_empty(slab_t *_slab);
 
 /* Linked list of slab caches */
-struct cache_list
-{
-    slab_cache_t *caches;
-    slab_cache_t *head;
-    slab_cache_t *tail;
-};
-
-static struct cache_list *cache_list;
+static slab_cache_t *cache_list;
+static slab_cache_t *head;
 
 /* Core functions */
 void slab_init(void)
@@ -61,12 +55,7 @@ void slab_init(void)
         }
     */
 
-    cache_list = malloc(sizeof(struct cache_list));
-    cache_list->caches = malloc(sizeof(slab_cache_t));
-    cache_list->caches->next = NULL;
-    cache_list->caches->prev = NULL;
-    cache_list->head = cache_list->caches;
-    cache_list->tail = cache_list->caches;
+    cache_list = (slab_cache_t*)malloc(sizeof(slab_cache_t));
 }
 
 void slab_destroy(slab_cache_t *cache)
@@ -146,12 +135,12 @@ slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_
     /* Cache properties */
     cache->descriptor = descriptor;
     cache->next = NULL;
-    cache->prev = get_previous_cache(cache_list->head);
+    cache->prev = get_previous_cache(cache_list);
     cache->constructor = constructor;
     cache->destructor = destructor;
 
     /* Append new cache to "global" system cache (slab_caches) */
-    append_to_global_cache(&cache_list->caches, cache);
+    append_to_global_cache(&cache_list, cache);
 
     /* Configure slab states */
     if (num_slabs > MAX_CREATABLE_SLABS_PER_CACHE)
@@ -462,12 +451,12 @@ void append_to_global_cache(slab_cache_t **ref, slab_cache_t *cache)
         *ref = (*ref)->next;
 
     *ref = cache;
-    cache_list->tail = *ref;
+    cache_list = *ref;
 }
 
 int remove_from_global_cache(slab_cache_t *cache)
 {
-    slab_cache_t *current = cache_list->head;
+    slab_cache_t *current = cache_list;
 
     for (;;)
     {
@@ -537,18 +526,17 @@ quit:
 
 void print_caches(void)
 {
-    slab_cache_t *type = malloc(sizeof(cache_list->caches));
-    memcpy(type, cache_list->head, sizeof(cache_list->caches));
+    slab_cache_t *type = malloc(sizeof(slab_cache_t));
+    memcpy(type, cache_list, sizeof(slab_cache_t));
 
-    // LOG("%s\n", type->descriptor);
-
+    LOG("%s %s\n", type->descriptor, type->prev->descriptor);
     for (;;)
     {
-        if (!type)
+        if (!type->prev)
             goto quit;
 
         LOG("Found cache '%s'\n", type->descriptor);
-        type = type->next;
+        type = type->prev;
     }
 quit:
     free(type);

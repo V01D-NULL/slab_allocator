@@ -31,6 +31,7 @@ int main(int argc, char const *argv[])
     //     if (slab_alloc(fs, NULL, size) == NULL)
     //         break;
 
+    print_caches();
     slab_destroy(fs);
     slab_destroy(dummy_cache1);
 
