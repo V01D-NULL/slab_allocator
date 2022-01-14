@@ -1,5 +1,5 @@
 CC = @gcc
-CFLAGS = -O2 -g -fsanitize=undefined
+CFLAGS = -O2 -g -fsanitize=undefined -D LOG_VERBOSE
 
 SRC = $(shell find . -type f -name '*.c')
 OBJ = $(SRC:.c=.c.o)

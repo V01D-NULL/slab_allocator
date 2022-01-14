@@ -8,6 +8,12 @@
 #include <stdbool.h>
 
 #define LOG(...) printf(__VA_ARGS__)
+#ifdef LOG_VERBOSE
+#define LOGV(...) printf("\e[1;34m"); printf(__VA_ARGS__); printf("\e[0m")
+#else
+#define LOGV(...)
+#endif
+
 #define BUG(...) { printf("\033[31mBUG:\033[39m "); printf(__VA_ARGS__); exit(2); }
 #define PAGE_ALLOC(pages) malloc(4096 * pages)
 #define PAGE_FREE(ptr) free(ptr);
