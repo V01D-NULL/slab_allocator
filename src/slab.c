@@ -160,13 +160,10 @@ slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_
         page += size * MAX_OBJECTS_PER_SLAB;
     }
 
-    // TODO: These tail pointers aren't used, we should probably just remove them..
     cache->used->head = NULL;
-    cache->used->tail = NULL;
     cache->used->next = NULL;
     cache->used->prev = NULL;
     cache->partial->head = NULL;
-    cache->partial->tail = NULL;
     cache->partial->next = NULL;
     cache->partial->prev = NULL;
 

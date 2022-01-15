@@ -70,7 +70,6 @@ typedef struct _slab
 typedef struct slab_state
 {
     slab_t *head;
-    slab_t *tail;
     bool is_full; // True if this slab state is full, use the next one if available.
     bool is_empty;
     struct slab_state *prev;
