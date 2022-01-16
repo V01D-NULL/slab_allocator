@@ -32,6 +32,8 @@ int main(int argc, char const *argv[])
         exit(1);
     }
 
+	slab_cache_t *cool_cache = slab_create_cache("cool cache", size, 3, NULL, NULL);
+
     // Demo: Allocate memory from a partial slab. Take a free slab if
     // the partial slab is empty. Exits the program if no free slab is available.
     // for (;;)
@@ -39,13 +41,48 @@ int main(int argc, char const *argv[])
     //         break;
 
     // FIXME: print_caches doesn't print 'dummy_cache1', something about slab_cache_create breaks or removes a head node (?)
-    print_caches();
+	// FIXME: UPDATE on this: all the caches exist but they are somehow linked wrong
+	// FIXME: probably get_previous_cache or print_caches or append_to_global_cache is wrong
+	// FIXME: interestingly, print_caches only prints the last two caches in cache_list
+    // print_caches();
     // slab_destroy(dummy_cache1);
     // slab_destroy(fs);
     // print_caches();
 
     
     // slab_alloc(fs, NULL, size);
+	
+
+	// LOGV("starting slab_traverse_cache\n");
+	// slab_traverse_cache(dummy_cache1);
+	// LOGV("slab_traverse_cache done\n");
+
+	LOGV("starting print_slabs (free)\n");
+	print_slabs(dummy_cache1->free);
+	LOGV("print_slabs (free) done\n");
+
+	LOGV("starting print_slabs (used)\n");
+	print_slabs(dummy_cache1->used);
+	LOGV("print_slabs (used) done\n");
+
+	LOGV("starting print_slabs (partial)\n");
+	print_slabs(dummy_cache1->partial);
+	LOGV("print_slabs (partial) done\n");
+
+	LOGV("prev logging\n");
+	
+	LOG("%p\n", dummy_cache1->prev);
+	LOG("%s\n", fs->prev->descriptor);
+	LOG("%s\n", never_gonna_give_you_up->prev->descriptor);
+	LOG("%s\n", cool_cache->prev->descriptor);
+	// -> get_previous_cache seems to work
+
+	LOGV("prev logging done\n");
+
+	LOGV("starting print_caches\n");
+	print_caches();
+	LOGV("print_caches done\n");
+
 
     return 0;
 }

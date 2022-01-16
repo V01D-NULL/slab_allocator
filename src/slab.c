@@ -3,6 +3,10 @@
 #include <string.h>
 #include <stdbool.h>
 
+
+// TODO: use ctor and dtor
+
+
 /* Utility functions */
 bool is_page_aligned(int n);
 bool is_power_of_two(int n);
@@ -16,7 +20,6 @@ bool is_slab_empty(slab_t *_slab);
 
 /* Linked list of slab caches */
 static slab_cache_t *cache_list;
-// static slab_cache_t *head;
 
 /* Core functions */
 void slab_init(void)
@@ -139,7 +142,7 @@ slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_
     cache->constructor = constructor;
     cache->destructor = destructor;
 
-    /* Append new cache to "global" system cache (slab_caches) */
+    /* Append new cache to "global" system cache (cache_list) */
     append_to_global_cache(&cache_list, cache);
 
     /* Configure slab states */
@@ -432,7 +435,10 @@ slab_cache_t *get_previous_cache(slab_cache_t *cache)
         {
             // This is the first node in the list, it has no prev pointer
             if (current == cache)
+			{
+				LOGV("There is no prev node -> NULL\n");
                 return NULL;
+			}
 
             LOGV("Found prev node (%s)\n", current->descriptor);
             return current;
@@ -542,6 +548,15 @@ void print_caches(void)
 {
     slab_cache_t *type = malloc(sizeof(slab_cache_t));
     memcpy(type, cache_list, sizeof(slab_cache_t));
+
+	// TODO: this fixes the problem but not the root cause
+	// for (;;)
+	// {
+	// 	if (type->prev == NULL)
+	// 		break;
+
+	// 	type = type->prev;
+	// }
 
     for (;;)
     {
