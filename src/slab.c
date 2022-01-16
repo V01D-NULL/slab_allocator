@@ -20,6 +20,7 @@ bool is_slab_empty(slab_t *_slab);
 
 /* Linked list of slab caches */
 static slab_cache_t *cache_list;
+static slab_cache_t *cache_list_head;
 
 /* Core functions */
 void slab_init(void)
@@ -141,6 +142,9 @@ slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_
     cache->prev = get_previous_cache(cache_list);
     cache->constructor = constructor;
     cache->destructor = destructor;
+
+	if (!cache->prev)
+		cache_list_head = cache;
 
     /* Append new cache to "global" system cache (cache_list) */
     append_to_global_cache(&cache_list, cache);
@@ -481,6 +485,8 @@ void remove_from_global_cache(slab_cache_t *cache)
             cache->next->prev = NULL; // the next node is now the head
             cache->next = NULL;
             cache = cache->next;
+
+			cache_list_head = cache;
         }
         else
         {
@@ -495,9 +501,12 @@ void remove_from_global_cache(slab_cache_t *cache)
 
     if (cache->next)
     {
-        cache->next->prev = cache->prev->next;
-        cache->next->next = NULL;
+        cache->next->prev = cache->prev;
     }
+
+	cache = cache->next;
+
+	cache_list_head = cache;
 
     free(cache);
 }
@@ -519,6 +528,7 @@ slab_t *create_slab(size_t size, void *memory)
 
 void remove_slab_head(slab_state_layer_t *state)
 {
+	// TODO: don't we have to free something?
     state->head = state->head->next;
 }
 
