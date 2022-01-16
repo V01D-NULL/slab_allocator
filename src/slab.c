@@ -557,16 +557,7 @@ quit:
 void print_caches(void)
 {
     slab_cache_t *type = malloc(sizeof(slab_cache_t));
-    memcpy(type, cache_list, sizeof(slab_cache_t));
-
-	// TODO: this fixes the problem but not the root cause
-	// for (;;)
-	// {
-	// 	if (type->prev == NULL)
-	// 		break;
-
-	// 	type = type->prev;
-	// }
+    memcpy(type, cache_list_head, sizeof(slab_cache_t));
 
     for (;;)
     {
