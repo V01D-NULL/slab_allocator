@@ -239,7 +239,6 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
                 LOGV("Got memory for partial slab #%d: %p\n", i + 1, partial_slab_state->head->objects[i].mem);
                 mem = partial_slab_state->head->objects[i].mem;
                 partial_slab_state->head->objects[i].is_allocated = true;
-                cache->slab_allocs++;
 
                 if (i == MAX_OBJECTS_PER_SLAB - 1)
                 {
@@ -526,7 +525,6 @@ slab_t *create_slab(size_t size, void *memory)
 
 void remove_slab_head(slab_state_layer_t *state)
 {
-	// TODO: don't we have to free something?
     state->head = state->head->next;
 }
 
