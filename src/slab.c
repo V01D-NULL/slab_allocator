@@ -132,7 +132,6 @@ slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_
 
     /* Statistics */
     cache->slab_creates = num_slabs;
-    cache->slab_destroys = 0;
     cache->slab_allocs = 0;
     cache->slab_frees = 0;
 
@@ -413,7 +412,6 @@ void slab_traverse_cache(slab_cache_t *cache)
         LOG("=== Cache statistics ===\n");
         LOG("* No. Active slabs: %5ld\n", cache->active_slabs);
         LOG("* No. Created slabs: %4ld\n", cache->slab_creates);
-        LOG("* No. Destroyed slabs: %2ld\n", cache->slab_destroys);
         LOG("* No. Allocations: %6ld\n", cache->slab_allocs);
         LOG("* No. Free's: %11ld\n", cache->slab_frees);
         LOG("* Has next cache: %8s\n", cache->next == NULL ? "no" : "yes");
