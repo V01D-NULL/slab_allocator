@@ -7,6 +7,8 @@ FINAL = test_slab
 
 all: $(FINAL)
 	@printf "Built: $<\n\n"
+
+run: $(FINAL)
 	./$<
 
 %.c.o: %.c
