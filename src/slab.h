@@ -82,7 +82,6 @@ struct slab_cache
     /* Statistics */
     uint64_t active_slabs;   // 
     uint64_t slab_creates;   // Total nr of created slabs
-    uint64_t slab_destroys;  // Total nr of destroyed slabs
     uint64_t slab_allocs;    // Total nr of allocated slabs
     uint64_t slab_frees;     // Total nr of free'd slabs
     
