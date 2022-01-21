@@ -79,6 +79,8 @@ typedef struct slab_state
 // Slab cache, also known as kmem_cache in linux
 struct slab_cache
 {
+    // TODO: let's have a size variable here
+
     /* Statistics */
     uint64_t active_slabs;   // 
     uint64_t slab_creates;   // Total nr of created slabs
@@ -86,11 +88,8 @@ struct slab_cache
     uint64_t slab_frees;     // Total nr of free'd slabs
     
     /* Cache properties */
-    const char *descriptor;
     struct slab_cache *prev;
     struct slab_cache *next;
-    ctor; // Called when a new object is created
-    dtor; // Called when an object is (indefinitely) destroyed
 
     /* Slab layer */
     slab_state_layer_t *free    __attribute__((aligned(16)));
@@ -101,8 +100,8 @@ struct slab_cache
 /* Core functions */
 void slab_init(void);
 void slab_destroy(slab_cache_t *cache);
-slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor);
-void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes);
+slab_cache_t *slab_create_cache(size_t size, size_t num_slabs);
+void *slab_alloc(slab_cache_t *cache, size_t bytes);
 int slab_free(slab_cache_t *cache, void *ptr);
 
 /* Utility functions */

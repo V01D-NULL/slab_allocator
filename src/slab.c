@@ -58,6 +58,16 @@ void slab_init(void)
     */
 
     cache_list = malloc(sizeof(slab_cache_t));
+
+    slab_create_cache(2, 3);
+    slab_create_cache(4, 3);
+    slab_create_cache(8, 3);
+    slab_create_cache(16, 3);
+    slab_create_cache(32, 3);
+    slab_create_cache(64, 3);
+    slab_create_cache(128, 3);
+    slab_create_cache(256, 3);
+    slab_create_cache(512, 3);
 }
 
 void slab_destroy(slab_cache_t *cache)
@@ -115,11 +125,8 @@ void slab_destroy(slab_cache_t *cache)
     remove_from_global_cache(cache);
 }
 
-slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_slabs, ctor, dtor)
+slab_cache_t *slab_create_cache(size_t size, size_t num_slabs)
 {
-    if (!descriptor)
-        return NULL;
-
     if (!is_power_of_two(size) || (size > 4096 && !is_page_aligned(size)) || num_slabs <= 0)
     {
         LOG("slab_cache_create failed because the parameter 'size' (%ld) is:\n1. not a power of two\n2. not page aligned or\n3. num_slabs is zero or negative\n", size);
@@ -134,11 +141,8 @@ slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_
     cache->slab_frees = 0;
 
     /* Cache properties */
-    cache->descriptor = descriptor;
     cache->next = NULL;
     cache->prev = get_previous_cache(cache_list);
-    cache->constructor = constructor;
-    cache->destructor = destructor;
 
     if (!cache->prev)
         cache_list_head = cache;
@@ -174,7 +178,7 @@ slab_cache_t *slab_create_cache(const char *descriptor, size_t size, size_t num_
     return cache;
 }
 
-void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
+void *slab_alloc(slab_cache_t *cache, size_t bytes)
 {
     // Algorithm:
     // 0. check if cache and partial slab are existent
@@ -185,8 +189,6 @@ void *slab_alloc(slab_cache_t *cache, const char *descriptor, size_t bytes)
     // 5. if yes -> move slab to used slab layer
     // 6. check if used slab layer has slabs left
     // 7. if no -> allocate a new one
-
-    // TODO: Search `slab_caches`
 
     /* 0. check if cache and partial slab are existent and check parameters */
     if (!cache)
@@ -385,7 +387,7 @@ void slab_traverse_cache(slab_cache_t *cache)
     /* Just log this cache */
     if (cache != NULL)
     {
-        LOG("=== Logging info for the slab cache \"%s\" ===\n", cache->descriptor);
+        LOG("=== Logging info for the slab cache with size \"%d\" ===\n", cache->free->head->objects[0].size);
         LOG("=== Dumping %ld slabs ===\n", cache->active_slabs);
 
         // for (size_t i = 0; i < cache->active_slabs; i++)
@@ -412,8 +414,6 @@ void slab_traverse_cache(slab_cache_t *cache)
         LOG("* No. Allocations: %6ld\n", cache->slab_allocs);
         LOG("* No. Free's: %11ld\n", cache->slab_frees);
         LOG("* Has next cache: %8s\n", cache->next == NULL ? "no" : "yes");
-        LOG("* Has ctor: %14s\n", cache->constructor == NULL ? "no" : "yes");
-        LOG("* Has dtor: %14s\n\n", cache->destructor == NULL ? "no" : "yes");
     }
     /* Log all slab caches */
     else
@@ -439,7 +439,7 @@ slab_cache_t *get_previous_cache(slab_cache_t *cache)
                 return NULL;
             }
 
-            LOGV("Found prev node (%s)\n", current->descriptor);
+            LOGV("Found prev node, slab cache with size (%d)\n", cache->free->head->objects[0].size);
             return current;
         }
 
@@ -472,11 +472,11 @@ void remove_from_global_cache(slab_cache_t *cache)
     if (!cache->prev)
     {
         // Yes, the cache is now empty.
-        LOGV("cache '%s' is the head node\n", cache->descriptor);
+        LOGV("cache with size '%d' is the head node\n", cache->free->head->objects[0].size);
 
         if (cache->next)
         {
-            LOGV("There is a next cache (%s)\n", cache->next->descriptor);
+            LOGV("There is a next cache (%s)\n", cache->free->head->objects[0].size);
             cache->next->prev = NULL; // the next node is now the head
             cache = cache->next;
             cache_list_head = cache;
@@ -556,7 +556,7 @@ void print_caches(void)
         if (!type)
             goto quit;
 
-        LOG("Found cache '%s'\n", type->descriptor);
+        LOG("Found cache '%s'\n", type->free->head->objects[0].size);
         type = type->next;
     }
 quit:
