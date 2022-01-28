@@ -47,7 +47,6 @@ typedef struct slab_cache slab_cache_t;
 typedef struct
 {
     void *mem;
-    int size;
     int num_objects;
 
     /* Flags */
@@ -74,7 +73,7 @@ typedef struct slab_state
 // Slab cache, also known as kmem_cache in linux
 struct slab_cache
 {
-    // TODO: let's have a size variable here
+    uint32_t size;
 
     /* Statistics */
     uint64_t active_slabs;   // 
