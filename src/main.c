@@ -53,7 +53,7 @@ int main(int argc, char const *argv[])
     LOG("breakpoint 0.4\n");
 
     print_caches();
-    
+
     LOG("breakpoint 1\n");
 
     void *ptr = slab_alloc(dummy_cache1, 2);
@@ -69,7 +69,7 @@ int main(int argc, char const *argv[])
     LOG("breakpoint 3\n");
 
     print_caches();
-    
+
     LOG("breakpoint 4\n");
 
     return 0;

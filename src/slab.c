@@ -219,9 +219,7 @@ void *slab_alloc(slab_cache_t *cache, size_t bytes)
         cache->partial->head = malloc(sizeof(slab_t));
 
         if (cache->partial->is_full)
-        {
             cache->partial->is_full = false;
-        }
 
         memcpy(cache->partial->head, free, sizeof(slab_t));
         cache->partial->head->next = NULL;
@@ -251,6 +249,7 @@ void *slab_alloc(slab_cache_t *cache, size_t bytes)
                     // Note: never worry about prev pointers in partial slabs since the slabs objects
                     // are all the same size and if a new partial slab needs to be created there is a full one; meaning it is in the full slab
                 }
+
                 goto end;
             }
         }
@@ -275,14 +274,14 @@ end:
 int slab_free(slab_cache_t *cache, void *ptr)
 {
     /*
-    *  Algorithm:
-    *   1. Traverse partial slab, search for an object who's 'mem' field contains 'ptr' and verify that it is allocated.
-    *     1.1 If we found something in the partial slab, mark the object as free. If the slab is completely free, move it to the free slab, otherwise do nothing and return.
-    * 
-    *   2. If searching the partial slab didn't yield any result, search the used slab and perform the same checks.
-    *     2.2 Mark the object in this slab as free and move it to the partial slab state.
-    * 
-    *   3. If neither the partial slab, nor the full slab yielded any result, the user attempted to free a free or invalid pointer. Return an error code.
+        Algorithm:
+        1. Traverse partial slab, search for an object who's 'mem' field contains 'ptr' and verify that it is allocated.
+          1.1 If we found something in the partial slab, mark the object as free. If the slab is completely free, move it to the free slab, otherwise do nothing and return.
+
+        2. If searching the partial slab didn't yield any result, search the used slab and perform the same checks.
+          2.2 Mark the object in this slab as free and move it to the partial slab state.
+
+        3. If neither the partial slab, nor the full slab yielded any result, the user attempted to free a free or invalid pointer. Return an error code.
     */
 
     if (!cache)
@@ -481,9 +480,7 @@ void remove_from_global_cache(slab_cache_t *cache)
             cache_list_head = cache;
         }
         else
-        {
             memset(cache, 0, sizeof(slab_cache_t));
-        }
 
         free(cache);
         return;
@@ -540,6 +537,7 @@ void print_slabs(slab_state_layer_t *t)
             type->head = type->head->next;
         }
     }
+
 quit:
     free(type);
 }
@@ -557,6 +555,7 @@ void print_caches(void)
         LOG("Found cache with size '%d'\n", type->size);
         type = type->next;
     }
+
 quit:
     free(type);
 }
