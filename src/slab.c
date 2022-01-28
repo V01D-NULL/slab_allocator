@@ -439,7 +439,7 @@ slab_cache_t *get_previous_cache(slab_cache_t *cache)
                 return NULL;
             }
 
-            LOGV("Found prev node, slab cache with size (%d)\n", cache->free->head->objects[0].size);
+            LOGV("Found prev node, slab cache with size (%d)\n", current->free->head->objects[0].size);
             return current;
         }
 
@@ -476,7 +476,7 @@ void remove_from_global_cache(slab_cache_t *cache)
 
         if (cache->next)
         {
-            LOGV("There is a next cache (%s)\n", cache->free->head->objects[0].size);
+            LOGV("There is a next cache (%s)\n", cache->next->free->head->objects[0].size);
             cache->next->prev = NULL; // the next node is now the head
             cache = cache->next;
             cache_list_head = cache;
