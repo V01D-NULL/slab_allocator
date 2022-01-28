@@ -18,15 +18,10 @@
 #define PAGE_ALLOC(pages) malloc(4096 * pages)
 #define PAGE_FREE(ptr) free(ptr);
 
-// Todo: Define a bitmask for each slab cache to use
-// such as panic if no free mem, allocation type (Kernel, user, dma, etc)
-
 #define MAX_SLABS_PER_STATE  5 // 5 slabs per slab_state_t
 #define MAX_OBJECTS_PER_SLAB 5 // 5 objects per slab_t
 #define MAX_CREATABLE_SLABS_PER_CACHE 8 // 8 slabs per cache are the max limit
 #define SLAB_FREE_ENTRY (void*)-1
-#define ctor void (*constructor)(size_t)
-#define dtor void (*destructor )(size_t)
 
 /*
 An simple implementation of Slab Memory Allocator. A logic structure can be 
