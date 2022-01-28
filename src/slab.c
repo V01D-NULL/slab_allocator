@@ -12,6 +12,7 @@ void append_slab(slab_t **ref, slab_t *new_node);
 void append_to_global_cache(slab_cache_t **ref, slab_cache_t *cache);
 void remove_from_global_cache(slab_cache_t *cache);
 slab_cache_t *get_previous_cache(slab_cache_t *cache);
+slab_cache_t *find_cache_of_size(slab_cache_t *cache, size_t size);
 slab_t *create_slab(size_t size);
 void remove_slab_head(slab_state_layer_t *state);
 bool is_slab_empty(slab_t *_slab);
@@ -197,7 +198,12 @@ void *slab_alloc(slab_cache_t *cache, size_t bytes)
 
     /* 0. check if cache and partial slab are existent and check parameters */
     if (!cache)
-        return NULL;
+    {
+	cache = find_cache_of_size(cache_list_head, bytes);
+
+	if (!cache)
+	    return NULL;	    
+    }
 
     if (!is_power_of_two(bytes) || (bytes > 4096 && !is_page_aligned(bytes)))
         return NULL;
@@ -385,7 +391,7 @@ void slab_traverse_cache(slab_cache_t *cache)
     /* Just log this cache */
     if (cache != NULL)
     {
-        LOG("=== Logging info for the slab cache with size \"%d\" ===\n", cache->size);
+        LOG("=== Logging info for the slab cache of size \"%d\" ===\n", cache->size);
         LOG("=== Dumping %ld slabs ===\n", cache->active_slabs);
 
         // for (size_t i = 0; i < cache->active_slabs; i++)
@@ -437,7 +443,7 @@ slab_cache_t *get_previous_cache(slab_cache_t *cache)
                 return NULL;
             }
 
-            LOGV("Found prev node, slab cache with size (%d)\n", current->size);
+            LOGV("Found prev node, slab cache of size (%d)\n", current->size);
             return current;
         }
 
@@ -445,6 +451,22 @@ slab_cache_t *get_previous_cache(slab_cache_t *cache)
     }
 
     __builtin_unreachable();
+}
+
+slab_cache_t *find_cache_of_size(slab_cache_t *cache, size_t size)
+{
+    if (!cache)
+        BUG("append_to_global_cache: Paremeter 'ref' is NULL"); // This should never happen
+
+    while (cache->next != NULL)
+    {
+	if (cache->size == size)
+	    return cache;
+
+	cache = cache->next;
+    }
+
+    return NULL;
 }
 
 void append_to_global_cache(slab_cache_t **ref, slab_cache_t *cache)
@@ -470,7 +492,7 @@ void remove_from_global_cache(slab_cache_t *cache)
     if (!cache->prev)
     {
         // Yes, the cache is now empty.
-        LOGV("cache with size '%d' is the head node\n", cache->size);
+        LOGV("Cache of size '%d' is the head node\n", cache->size);
 
         if (cache->next)
         {
@@ -552,7 +574,7 @@ void print_caches(void)
         if (!type)
             goto quit;
 
-        LOG("Found cache with size '%d'\n", type->size);
+        LOG("Found cache of size '%d'\n", type->size);
         type = type->next;
     }
 
