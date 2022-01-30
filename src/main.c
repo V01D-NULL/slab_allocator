@@ -9,7 +9,9 @@ int main(int argc, char const *argv[])
 {
     slab_init();
 
-    for (;;)
+    print_caches();
+
+    for (int i = 0; i < MAX_SLABS_PER_STATE * MAX_CREATABLE_SLABS_PER_CACHE + 1; i++)
         if (slab_alloc(NULL, 2) == NULL)
             break;
 

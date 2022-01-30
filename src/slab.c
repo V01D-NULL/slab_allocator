@@ -60,15 +60,15 @@ void slab_init(void)
 
     cache_list = malloc(sizeof(slab_cache_t));
 
-    slab_create_cache(2, 3);
-    slab_create_cache(4, 3);
-    slab_create_cache(8, 3);
-    slab_create_cache(16, 3);
-    slab_create_cache(32, 3);
-    slab_create_cache(64, 3);
-    slab_create_cache(128, 3);
-    slab_create_cache(256, 3);
-    slab_create_cache(512, 3);
+    slab_create_cache(2,    MAX_CREATABLE_SLABS_PER_CACHE);
+    slab_create_cache(4,    MAX_CREATABLE_SLABS_PER_CACHE);
+    slab_create_cache(8,    MAX_CREATABLE_SLABS_PER_CACHE);
+    slab_create_cache(16,   MAX_CREATABLE_SLABS_PER_CACHE);
+    slab_create_cache(32,   MAX_CREATABLE_SLABS_PER_CACHE);
+    slab_create_cache(64,   MAX_CREATABLE_SLABS_PER_CACHE);
+    slab_create_cache(128,  MAX_CREATABLE_SLABS_PER_CACHE);
+    slab_create_cache(256,  MAX_CREATABLE_SLABS_PER_CACHE);
+    slab_create_cache(512,  MAX_CREATABLE_SLABS_PER_CACHE);
 }
 
 void slab_destroy(slab_cache_t *cache)
@@ -216,11 +216,25 @@ void *slab_alloc(slab_cache_t *cache, size_t bytes)
         LOGV("Taking memory from free slab\n");
         slab_t *free = cache->free->head;
 
-        if (!free)
-        {
-            LOG("No more free slabs!\n");
-            return NULL; // we are out of memory
-        }
+        // if (!free)
+        // {
+        //     LOG("No more free slabs!\n");
+        //     return NULL; // we are out of memory
+        // }
+
+	if (!free)
+	{
+	    // TODO: possibility of recursive bug
+	    if (is_power_of_two(cache->size) && cache->size <= 512) 
+	    {
+	        slab_cache_t *new_cache = slab_create_cache(cache->size, MAX_CREATABLE_SLABS_PER_CACHE);
+		LOGV("Default cache ran out of memory, created new one of size: %d\n", cache->size);
+	        return slab_alloc(new_cache, bytes);
+	    }
+
+	    fprintf(stderr, "No more free slabs!\n");
+	    return NULL;
+	}
 
         cache->partial->head = malloc(sizeof(slab_t));
 
@@ -265,8 +279,16 @@ void *slab_alloc(slab_cache_t *cache, size_t bytes)
 
     if (!mem)
     {
-        fprintf(stderr, "Cache is out of memory!\n");
-        return NULL;
+	// TODO: possibility of recursive bug
+	if (is_power_of_two(cache->size) && cache->size <= 512) 
+	{
+	    slab_cache_t *new_cache = slab_create_cache(cache->size, MAX_CREATABLE_SLABS_PER_CACHE);
+	    LOGV("Default cache ran out of memory, created new one of size: %d\n", cache->size);
+	    return slab_alloc(new_cache, bytes);
+	}
+
+	fprintf(stderr, "Cache out of memory!\n");
+	return NULL;
     }
 
 end:
@@ -458,7 +480,7 @@ slab_cache_t *find_cache_of_size(slab_cache_t *cache, size_t size)
     if (!cache)
         BUG("append_to_global_cache: Paremeter 'ref' is NULL"); // This should never happen
 
-    while (cache->next != NULL)
+    while (cache != NULL)
     {
 	if (cache->size == size)
 	    return cache;
