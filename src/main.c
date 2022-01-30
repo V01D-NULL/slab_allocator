@@ -11,9 +11,11 @@ int main(int argc, char const *argv[])
 
     print_caches();
 
-    for (int i = 0; i < MAX_SLABS_PER_STATE * MAX_CREATABLE_SLABS_PER_CACHE + 1; i++)
-        if (slab_alloc(NULL, 2) == NULL)
-            break;
+    for (int i = 0; i < MAX_SLABS_PER_STATE * MAX_CREATABLE_SLABS_PER_CACHE + 3; i++)
+    {
+	slab_cache_t *test = slab_alloc(NULL, 2);
+	slab_traverse_cache(test);
+    }
 
     // slab_cache_t *dummy_cache1 = NULL;
     // slab_cache_t *dummy_cache2 = NULL;
